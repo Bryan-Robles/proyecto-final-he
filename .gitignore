@@ -1,0 +1,22 @@
+# Secretos — NUNCA versionar
+.env
+.env.local
+*.pem
+*.key
+*.p12
+*.dump
+*.sql.dump
+
+# Dependencias
+node_modules/
+
+# Logs y temporales
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+coverage/
