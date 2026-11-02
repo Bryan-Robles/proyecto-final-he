@@ -1,0 +1,39 @@
+name: smoke-docker
+
+# Check INFORMATIVO (no bloqueante por ahora): construye las dos versiones
+# y verifica que la app responde HTTP 200. Volverlo bloqueante cuando sea estable.
+
+on:
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build & verificar VULNERABLE (:4000)
+        run: |
+          docker compose -f vulnerable/docker-compose.yml up -d --build
+          ok=""
+          for i in $(seq 1 40); do
+            c=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:4000/login || true)
+            if [ "$c" = "200" ]; then ok="1"; echo "vulnerable OK tras $((i*3))s"; break; fi
+            sleep 3
+          done
+          docker compose -f vulnerable/docker-compose.yml logs web | tail -20 || true
+          docker compose -f vulnerable/docker-compose.yml down -v
+          test -n "$ok"
+
+      - name: Build & verificar MITIGADO (:4001)
+        run: |
+          docker compose -f mitigated/docker-compose.yml up -d --build
+          ok=""
+          for i in $(seq 1 40); do
+            c=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:4001/login || true)
+            if [ "$c" = "200" ]; then ok="1"; echo "mitigado OK tras $((i*3))s"; break; fi
+            sleep 3
+          done
+          docker compose -f mitigated/docker-compose.yml logs web | tail -20 || true
+          docker compose -f mitigated/docker-compose.yml down -v
+          test -n "$ok"

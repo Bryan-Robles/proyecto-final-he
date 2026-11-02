@@ -1,0 +1,20 @@
+name: gitleaks
+
+# Escaneo automatico de secretos en cada PR y push a main.
+# Regla del proyecto: nunca subir contrasenas, tokens, claves ni .env.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,43 @@
+name: lint
+
+# Verificacion de sintaxis de los scripts del proyecto (poc-scripts/).
+# No linta el codigo de NodeGoat (es deliberadamente vulnerable).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Sintaxis JavaScript (node --check)
+        run: |
+          shopt -s nullglob
+          for f in poc-scripts/*.js; do
+            echo "check $f"
+            node --check "$f"
+          done
+
+      - name: Sintaxis Python (py_compile)
+        run: |
+          shopt -s nullglob
+          for f in poc-scripts/*.py; do
+            echo "check $f"
+            python3 -m py_compile "$f"
+          done
+
+      - name: Sintaxis Bash (bash -n)
+        run: |
+          shopt -s nullglob
+          for f in poc-scripts/*.sh; do
+            echo "check $f"
+            bash -n "$f"
+          done
