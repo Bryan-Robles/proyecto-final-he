@@ -1,0 +1,4 @@
+v3test / correcta (signup) -> 302 http://localhost:4001/dashboard
+admin / correcta (seed admin) -> 302 http://localhost:4001/benefits
+user1 / correcta (seed user) -> 302 http://localhost:4001/dashboard
+v3test / incorrecta -> 200 

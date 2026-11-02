@@ -8,6 +8,9 @@
 
 const { MongoClient } = require("mongodb");
 const { db } = require("../config/config");
+// V3 (A04:2025): el seed tambien se guarda con bcrypt, igual que addUser().
+const bcrypt = require("bcryptjs");
+const SALT_ROUNDS = Math.max(10, parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12);
 
 const USERS_TO_INSERT = [
     {
@@ -95,10 +98,17 @@ MongoClient.connect(db, (err, db) =>  {
         });
 
         // insert admin and test users
+        // V3: credenciales demo conocidas del laboratorio; se hashean antes de
+        // insertar (hashSync es aceptable aqui: script de un solo uso, no servidor).
+        const usersToInsert = USERS_TO_INSERT.map((user) => Object.assign({}, user, {
+            password: bcrypt.hashSync(user.password, SALT_ROUNDS)
+        }));
+        // V3: nunca registrar contrasenas ni hashes en logs.
+        const redact = (user) => Object.assign({}, user, { password: "[REDACTED]" });
         console.log("Users to insert:");
-        USERS_TO_INSERT.forEach((user) => console.log(JSON.stringify(user)));
+        usersToInsert.forEach((user) => console.log(JSON.stringify(redact(user))));
 
-        usersCol.insertMany(USERS_TO_INSERT, (err, data) => {
+        usersCol.insertMany(usersToInsert, (err, data) => {
             const finalAllocations = [];
 
             // We can't continue if error here
@@ -107,7 +117,8 @@ MongoClient.connect(db, (err, db) =>  {
                 console.log(JSON.stringify(err));
                 process.exit(1);
             }
-            parseResponse(err, data, "users.insertMany");
+            // V3: solo el conteo; data.ops contiene los hashes.
+            parseResponse(err, { insertedCount: data.insertedCount }, "users.insertMany");
 
             data.ops.forEach((user) => {
                 const stocks = Math.floor((Math.random() * 40) + 1);

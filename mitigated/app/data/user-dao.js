@@ -1,4 +1,10 @@
-const bcrypt = require("bcrypt-nodejs");
+// V3 (A04:2025): bcryptjs (JS puro, sin compilacion nativa en node:12-alpine)
+// reemplaza a bcrypt-nodejs 0.0.3, abandonado y marcado "deprecated" en npm.
+const bcrypt = require("bcryptjs");
+
+// V3: factor de costo de bcrypt (2^12 rondas de expansion de clave, ~300 ms
+// por hash con bcryptjs). Configurable con BCRYPT_SALT_ROUNDS, nunca < 10.
+const SALT_ROUNDS = Math.max(10, parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12);
 
 /* The UserDAO must be constructed with a connected database object */
 function UserDAO(db) {
@@ -16,33 +22,41 @@ function UserDAO(db) {
 
     this.addUser = (userName, firstName, lastName, password, email, callback) => {
 
-        // Create user document
-        const user = {
-            userName,
-            firstName,
-            lastName,
-            benefitStartDate: this.getRandomFutureDate(),
-            password //received from request param
-            /*
-            // Fix for A2-1 - Broken Auth
-            // Stores password  in a safer way using one way encryption and salt hashing
-            password: bcrypt.hashSync(password, bcrypt.genSaltSync())
-            */
-        };
-
-        // Add email if set
-        if (email) {
-            user.email = email;
-        }
-
-        this.getNextSequence("userId", (err, id) => {
+        // V3: hash asincrono (no bloquea el event loop). bcrypt genera una sal
+        // aleatoria por usuario y la guarda dentro del hash ($2a$12$<sal><hash>).
+        bcrypt.hash(password, SALT_ROUNDS, (err, passwordHash) => {
             if (err) {
                 return callback(err, null);
             }
-            console.log(typeof(id));
 
-            user._id = id;
-            usersCol.insert(user, (err, result) => !err ? callback(null, result.ops[0]) : callback(err, null));
+            // Create user document
+            const user = {
+                userName,
+                firstName,
+                lastName,
+                benefitStartDate: this.getRandomFutureDate(),
+                password: passwordHash // V3: nunca se guarda el valor recibido
+                /*
+                // Fix for A2-1 - Broken Auth
+                // Stores password  in a safer way using one way encryption and salt hashing
+                password: bcrypt.hashSync(password, bcrypt.genSaltSync())
+                */
+            };
+
+            // Add email if set
+            if (email) {
+                user.email = email;
+            }
+
+            this.getNextSequence("userId", (err, id) => {
+                if (err) {
+                    return callback(err, null);
+                }
+                console.log(typeof(id));
+
+                user._id = id;
+                usersCol.insert(user, (err, result) => !err ? callback(null, result.ops[0]) : callback(err, null));
+            });
         });
     };
 
@@ -57,8 +71,15 @@ function UserDAO(db) {
     this.validateLogin = (userName, password, callback) => {
 
         // Helper function to compare passwords
-        const comparePassword = (fromDB, fromUser) => {
-            return fromDB === fromUser;
+        // V3: firma corregida. El original declaraba (fromDB, fromUser) pero se
+        // llamaba con (password, user.password): nombres invertidos.
+        // bcrypt.compare(texto_plano, hash): con el orden invertido devuelve
+        // false sin lanzar error. Asincrono para no bloquear el event loop.
+        const comparePassword = (plainFromUser, hashFromDB, cb) => {
+            if (typeof plainFromUser !== "string" || typeof hashFromDB !== "string") {
+                return cb(null, false);
+            }
+            return bcrypt.compare(plainFromUser, hashFromDB, cb);
             /*
             // Fix for A2-Broken Auth
             // compares decrypted password stored in this.addUser()
@@ -72,14 +93,17 @@ function UserDAO(db) {
             if (err) return callback(err, null);
 
             if (user) {
-                if (comparePassword(password, user.password)) {
-                    callback(null, user);
-                } else {
-                    const invalidPasswordError = new Error("Invalid password");
-                    // Set an extra field so we can distinguish this from a db error
-                    invalidPasswordError.invalidPassword = true;
-                    callback(invalidPasswordError, null);
-                }
+                comparePassword(password, user.password, (err, isMatch) => {
+                    if (err) return callback(err, null);
+                    if (isMatch) {
+                        callback(null, user);
+                    } else {
+                        const invalidPasswordError = new Error("Invalid password");
+                        // Set an extra field so we can distinguish this from a db error
+                        invalidPasswordError.invalidPassword = true;
+                        callback(invalidPasswordError, null);
+                    }
+                });
             } else {
                 const noSuchUserError = new Error("User: " + user + " does not exist");
                 // Set an extra field so we can distinguish this from a db error
