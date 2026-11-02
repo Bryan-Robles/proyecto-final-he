@@ -1,0 +1,19 @@
+# Config gitleaks del proyecto. Extiende las reglas por defecto y permite
+# explicitamente las credenciales DEMO del laboratorio (NodeGoat), que son
+# publicas y parte de la app vulnerable, no secretos reales.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Credenciales demo del laboratorio y codigo vulnerable de NodeGoat"
+paths = [
+  '''vulnerable/.*''',
+  '''mitigated/artifacts/db-reset\.js''',
+  '''\.env\.example''',
+]
+regexes = [
+  '''Admin_123''',
+  '''User1_123''',
+  '''User2_123''',
+]

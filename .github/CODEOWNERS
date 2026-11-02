@@ -1,0 +1,21 @@
+# Asignacion automatica de revisor por area (GitHub solicita su review al abrir PR).
+# El usuario listado es quien REVISA esa area (no su dueno).
+#
+# PENDIENTE: completar los usuarios de GitHub de JuanFra y Kevin y descomentar
+# sus lineas (reemplazar <usuario-...> por el login real).
+
+# V1 - IDOR (dueno JuanFra) -> revisa Kevin
+# /docs/vulns/V1-*                 @<usuario-kevin>
+# /mitigated/app/routes/allocations.js  @<usuario-kevin>
+
+# V2 - NoSQL Injection (dueno Bryan) -> revisa JuanDa
+/docs/vulns/V2-*                   @j-david06
+/mitigated/app/data/allocations-dao.js  @j-david06
+
+# V3 - Cryptographic Failures (dueno JuanDa) -> revisa Bryan
+/docs/vulns/V3-*                   @Bryan-Robles
+/mitigated/app/data/user-dao.js    @Bryan-Robles
+
+# V4 - Security Misconfiguration (dueno Kevin) -> revisa JuanFra
+# /docs/vulns/V4-*                 @<usuario-juanfra>
+# /mitigated/server.js             @<usuario-juanfra>
