@@ -1,0 +1,11 @@
+[V3] Fecha: 2026-11-02T05:04:49.937Z
+[V3] Destino: mongodb://mongo:27017/nodegoat
+[V3] Coleccion: users | campo: password
+
+  _id=1   user=admin        TEXTO PLANO                  A******** (len=9)
+  _id=2   user=user1        TEXTO PLANO                  U******** (len=9)
+  _id=3   user=user2        TEXTO PLANO                  U******** (len=9)
+  _id=4   user=v3test       TEXTO PLANO                  P******** (len=10)
+
+[V3] Total: 4 | inseguros: 4
+[V3] RESULTADO: VULNERABLE - contrasenas recuperables desde la BD (A04:2025)
