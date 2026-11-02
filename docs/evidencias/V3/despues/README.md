@@ -11,3 +11,5 @@
 | Conclusión | Las contraseñas ya no son recuperables desde la BD: un atacante con lectura de `users` obtiene hashes con sal por usuario y costo 2^12, que exigen fuerza bruta offline lenta. La funcionalidad legítima de signup y login se conserva. |
 
 Nota: los logs de arranque muestran `"password":"[REDACTED]"`; ningún valor en claro ni hash se registra.
+
+Complemento UI: registro (y login en DESPUÉS) desde el navegador con el usuario `v3web`; la PoC confirma el estado en BD. Ver `ui_*.png`.
