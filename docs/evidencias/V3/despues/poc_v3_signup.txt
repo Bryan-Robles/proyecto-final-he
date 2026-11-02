@@ -1,0 +1,11 @@
+[V3] Fecha: 2026-11-02T05:31:13.809Z
+[V3] Destino: mongodb://mongo:27017/nodegoat
+[V3] Coleccion: users | campo: password
+
+  _id=1   user=admin        BCRYPT (cost=12)             $2a$12$******** (len=60)
+  _id=2   user=user1        BCRYPT (cost=12)             $2a$12$******** (len=60)
+  _id=3   user=user2        BCRYPT (cost=12)             $2a$12$******** (len=60)
+  _id=4   user=v3test       BCRYPT (cost=12)             $2a$12$******** (len=60)
+
+[V3] Total: 4 | inseguros: 0
+[V3] RESULTADO: MITIGADO - todas las contrasenas con bcrypt
