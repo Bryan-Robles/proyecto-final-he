@@ -59,23 +59,23 @@ const AllocationsDAO = function(db){
 
         const searchCriteria = () => {
 
-            if (threshold) {
-                /*
-                // Fix for A1 - 2 NoSQL Injection - escape the threshold parameter properly
-                // Fix this NoSQL Injection which doesn't sanitze the input parameter 'threshold' and allows attackers
-                // to inject arbitrary javascript code into the NoSQL query:
-                // 1. 0';while(true){}'
-                // 2. 1'; return 1 == '1
-                // Also implement fix in allocations.html for UX.                             
-                const parsedThreshold = parseInt(threshold, 10);
-                
-                if (parsedThreshold >= 0 && parsedThreshold <= 99) {
-                    return {$where: `this.userId == ${parsedUserId} && this.stocks > ${parsedThreshold}`};
+            if (threshold !== undefined && threshold !== "") {
+                // V2 (A05:2025) NoSQL Injection - fix de causa raiz.
+                // El codigo vulnerable interpolaba 'threshold' (entrada del usuario)
+                // dentro de una clausula $where, que ejecuta JavaScript en el motor
+                // de Mongo. Aqui:
+                //  1) Se valida que 'threshold' sea un entero en el rango 0..99
+                //     (Number estricto: "0' || '1'=='1" -> NaN -> se rechaza).
+                //  2) Se elimina $where por completo y se usa el operador nativo
+                //     $gt con el valor ya convertido a numero. Asi ninguna entrada
+                //     del usuario llega a evaluarse como codigo.
+                const parsedThreshold = Number(threshold);
+                if (!Number.isInteger(parsedThreshold) || parsedThreshold < 0 || parsedThreshold > 99) {
+                    throw `The user supplied threshold: ${threshold} was not valid.`;
                 }
-                throw `The user supplied threshold: ${parsedThreshold} was not valid.`;
-                */
                 return {
-                    $where: `this.userId == ${parsedUserId} && this.stocks > '${threshold}'`
+                    userId: parsedUserId,
+                    stocks: { $gt: parsedThreshold }
                 };
             }
             return {
