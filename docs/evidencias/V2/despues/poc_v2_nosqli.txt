@@ -1,0 +1,27 @@
+Evidencia V2 - NoSQL Injection (DESPUES, version mitigada)
+Fecha: 2026-11-02
+App: OWASP NodeGoat, mitigated/ en http://localhost:4001
+Categoria: OWASP A05:2025 Injection
+
+Comando:
+  docker compose -f mitigated/docker-compose.yml up -d --build
+  BASE=http://localhost:4001 python poc-scripts/v2_nosqli.py
+
+Salida:
+  [V2] Destino: http://localhost:4001  userId=1
+  [V2] Payload threshold: "0' || '1'=='1"
+  [V2] Linea base (threshold=0): 1 fila(s) -> ['Node Goat Admin']
+  [V2] Con inyeccion:            0 fila(s) -> []
+  [V2] RESULTADO: MITIGADO - la inyeccion no altero el resultado
+  EXIT_DESPUES=0
+
+Regresion (funcionalidad legitima):
+  threshold=10 -> 1 fila(s) propias
+  El filtro con un entero valido sigue devolviendo los datos del propio usuario.
+
+Interpretacion:
+  Tras la mitigacion, 'threshold' se valida como entero en rango 0..99 con Number
+  estricto y la consulta usa el operador nativo $gt (se elimino $where). El payload
+  "0' || '1'=='1" ya no es numerico: Number(...) -> NaN -> se rechaza, por lo que la
+  peticion no devuelve datos de otros usuarios (0 filas). La funcionalidad legitima
+  (threshold numerico valido) se mantiene.
