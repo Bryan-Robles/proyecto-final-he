@@ -6,9 +6,9 @@ Resultado: la inyección en `threshold` (`0' || '1'=='1`) ya no altera el result
 (0 filas vs. 1 de la línea base). `EXIT=0` → MITIGADO. Con un `threshold` numérico
 válido (10) la funcionalidad legítima sigue operando.
 
-Reproducir:
+Reproducir (la clave demo se pasa por `POC_PASS`, no se publica):
 
 ```bash
 docker compose -f mitigated/docker-compose.yml up -d --build
-BASE=http://localhost:4001 python poc-scripts/v2_nosqli.py
+BASE=http://localhost:4001 POC_PASS=<clave_demo> python3 poc-scripts/v2_nosqli.py
 ```

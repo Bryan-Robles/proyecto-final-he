@@ -3,25 +3,30 @@ Fecha: 2026-11-02
 App: OWASP NodeGoat, mitigated/ en http://localhost:4001
 Categoria: OWASP A05:2025 Injection
 
-Comando:
+Comando (la clave demo se pasa por POC_PASS, no se publica):
   docker compose -f mitigated/docker-compose.yml up -d --build
-  BASE=http://localhost:4001 python poc-scripts/v2_nosqli.py
+  BASE=http://localhost:4001 POC_PASS=<clave_demo> python3 poc-scripts/v2_nosqli.py
 
 Salida:
   [V2] Destino: http://localhost:4001  userId=1
   [V2] Payload threshold: "0' || '1'=='1"
   [V2] Linea base (threshold=0): 1 fila(s) -> ['Node Goat Admin']
-  [V2] Con inyeccion:            0 fila(s) -> []
+  [V2] Con inyeccion:            HTTP 500, 0 fila(s) -> []
+  [V2] Regresion (threshold=10): HTTP 200 (aceptado), 1 fila(s) propia(s)
+  [V2] Inyeccion rechazada (HTTP 500); un threshold valido se acepta (HTTP 200).
   [V2] RESULTADO: MITIGADO - la inyeccion no altero el resultado
   EXIT_DESPUES=0
 
-Regresion (funcionalidad legitima):
-  threshold=10 -> 1 fila(s) propias
-  El filtro con un entero valido sigue devolviendo los datos del propio usuario.
+Verificacion de XSS (el fix no debe introducir un sink nuevo):
+  GET /allocations/1?threshold=<script>alert(1)</script> (con sesion)
+  -> HTTP 500 | script reflejado sin escapar: False
+  -> XSS -> OK (no se refleja)
 
 Interpretacion:
-  Tras la mitigacion, 'threshold' se valida como entero en rango 0..99 con Number
-  estricto y la consulta usa el operador nativo $gt (se elimino $where). El payload
-  "0' || '1'=='1" ya no es numerico: Number(...) -> NaN -> se rechaza, por lo que la
-  peticion no devuelve datos de otros usuarios (0 filas). La funcionalidad legitima
-  (threshold numerico valido) se mantiene.
+  Tras la mitigacion, 'threshold' se valida con la regex ^\d{1,2}$ (entero 0..99)
+  y la consulta usa el operador nativo $gt (se elimino $where). El payload
+  "0' || '1'=='1" no pasa la validacion: la peticion se rechaza (HTTP 500) con un
+  mensaje FIJO ("Invalid threshold") devuelto por callback, por lo que no se
+  refleja la entrada (sin XSS). Un threshold valido (10) se acepta (HTTP 200): la
+  funcionalidad legitima se mantiene. El numero de filas de la regresion depende
+  del valor aleatorio de 'stocks' del seed; lo determinista es el codigo HTTP.
