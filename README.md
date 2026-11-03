@@ -73,4 +73,4 @@ proyecto-final-he/
 |-----------|---------|
 | Entrega del proyecto | 30 pts |
 | Sustentación y defensa técnica | 90 pts |
-| **Total** | **100 pts** |
+| **Total** | **120 pts** |
