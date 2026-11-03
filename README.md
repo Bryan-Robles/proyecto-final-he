@@ -71,6 +71,6 @@ proyecto-final-he/
 
 | Componente | Puntaje |
 |-----------|---------|
-| Entrega del proyecto | 25 pts |
-| Sustentación y defensa técnica | 75 pts |
+| Entrega del proyecto | 30 pts |
+| Sustentación y defensa técnica | 90 pts |
 | **Total** | **100 pts** |
