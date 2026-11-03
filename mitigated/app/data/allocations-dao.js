@@ -57,33 +57,30 @@ const AllocationsDAO = function(db){
     this.getByUserIdAndThreshold = (userId, threshold, callback) => {
         const parsedUserId = parseInt(userId);
 
-        const searchCriteria = () => {
-
-            if (threshold) {
-                /*
-                // Fix for A1 - 2 NoSQL Injection - escape the threshold parameter properly
-                // Fix this NoSQL Injection which doesn't sanitze the input parameter 'threshold' and allows attackers
-                // to inject arbitrary javascript code into the NoSQL query:
-                // 1. 0';while(true){}'
-                // 2. 1'; return 1 == '1
-                // Also implement fix in allocations.html for UX.                             
-                const parsedThreshold = parseInt(threshold, 10);
-                
-                if (parsedThreshold >= 0 && parsedThreshold <= 99) {
-                    return {$where: `this.userId == ${parsedUserId} && this.stocks > ${parsedThreshold}`};
-                }
-                throw `The user supplied threshold: ${parsedThreshold} was not valid.`;
-                */
-                return {
-                    $where: `this.userId == ${parsedUserId} && this.stocks > '${threshold}'`
-                };
+        // V2 (A05:2025) NoSQL Injection - fix de causa raiz.
+        // El codigo vulnerable interpolaba 'threshold' (entrada del usuario) dentro
+        // de una clausula $where, que ejecuta JavaScript en el motor de Mongo. Aqui:
+        //  1) 'threshold' debe ser un string de 1-2 digitos (0..99). La regex
+        //     ^\d{1,2}$ rechaza tambien arrays (?threshold=5&threshold=6, que
+        //     llega como array -> typeof !== "string"), "1e1", "0x10" y espacios,
+        //     que Number() aceptaria.
+        //  2) Se elimina $where y se usa el operador nativo $gt con el numero ya
+        //     validado. Ninguna entrada del usuario se evalua como codigo.
+        //  3) El error se devuelve por callback con un mensaje FIJO: no se incluye
+        //     la entrada, para no reflejarla en la pagina de error (autoescape off
+        //     => evitar XSS reflejado).
+        let criteria = { userId: parsedUserId };
+        if (threshold !== undefined && threshold !== "") {
+            if (typeof threshold !== "string" || !/^\d{1,2}$/.test(threshold)) {
+                return callback(new Error("Invalid threshold"), null);
             }
-            return {
-                userId: parsedUserId
+            criteria = {
+                userId: parsedUserId,
+                stocks: { $gt: Number(threshold) }
             };
-        };
+        }
 
-        allocationsCol.find(searchCriteria()).toArray((err, allocations) => {
+        allocationsCol.find(criteria).toArray((err, allocations) => {
             if (err) return callback(err, null);
             if (!allocations.length) return callback("ERROR: No allocations found for the user", null);
 
