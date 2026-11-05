@@ -22,7 +22,7 @@
   ```bash
   curl -sI http://localhost:4000/ | grep -iE "x-powered-by|x-frame-options|content-security-policy|strict-transport-security"
   ```
-- Resultado obtenido: <aparece `x-powered-by: Express`, faltan cabeceras de seguridad> (evidencia: `docs/evidencias/V4/antes/...`)
+- Resultado obtenido: <aparece `x-powered-by: Express`, faltan cabeceras de seguridad> (evidencia: `docs/evidencias/V4/antes/Evidencia_01_V4_Cabeceras_Vulnerables.png`)
 - Explicación del impacto: superficie ampliada por ausencia de controles.
 
 ## 4. Mitigación
@@ -40,5 +40,5 @@
 
 ## 5. Validación (antes / después)
 - ANTES (vulnerable): `curl -sI` muestra `x-powered-by` y faltan cabeceras → evidencia `docs/evidencias/V4/antes/...`
-- DESPUÉS (mitigado): helmet añade `X-Frame-Options`, `X-Content-Type-Options`, CSP, HSTS y oculta `x-powered-by` → evidencia `docs/evidencias/V4/despues/...`
+- DESPUÉS (mitigado): helmet añade `X-Frame-Options`, `X-Content-Type-Options`, CSP, HSTS y oculta `x-powered-by` → evidencia `docs/evidencias/V4/despues/Evidencia_02_V4_Cabeceras_Seguras.png`
 - Regresión: la navegación y las funciones de la app siguen operando → evidencia ...
