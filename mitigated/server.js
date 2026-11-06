@@ -95,7 +95,7 @@ MongoClient.connect(db, (err, db) => {
 
         cookie: {
             httpOnly: true,
-            secure: true,
+            secure: process.env.COOKIE_SECURE === "true",
             sameSite: "lax"
         }
 
