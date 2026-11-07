@@ -2,7 +2,7 @@
 
 ## 1. Identificación
 - Categoría OWASP: A01:2025 — Broken Access Control (equiv. A01:2021)
-- Dueño: JuanFra | Revisor PR: Kevin | Rama: `feat/v1-idor-juanfra` | Commits clave: `aedaee5` (PoC), `2a97698` (fix, tag `v1-mitigado`), `d884c51` (validación)
+- Dueño: JuanFra | Revisor PR: Kevin | Rama: `feat/v1-idor-juanfra` | Commits clave: `e6d57ff` (PoC), `8379cba` (fix, tag `v1-mitigado`), `6586ffb` (validación)
 
 ## 2. Análisis
 - Descripción técnica: el endpoint `GET /allocations/:userId` muestra las asignaciones de inversión del usuario cuyo `userId` llega en la URL. El handler toma el `userId` del parámetro de la ruta, no de la sesión, y solo valida que haya sesión iniciada (`isLoggedIn`), sin comprobar que el recurso pertenezca al usuario autenticado. Un usuario logueado puede cambiar el número en la URL y leer datos de otros usuarios (IDOR / escalada horizontal).
@@ -21,7 +21,7 @@
   BASE=http://localhost:4000 POC_PASS=<clave_demo_user1> ./poc-scripts/v1_idor.sh
   ```
   El script inicia sesión como `user1` (John Doe, `_id` 2), pide `/allocations/2` (propio) y `/allocations/3` (ajeno) con la misma cookie y compara los nombres de `Asset Allocations for ...`.
-- Resultado obtenido (2026-11-07T03:24Z, commit `aedaee5`):
+- Resultado obtenido (2026-11-07T03:24Z, commit `e6d57ff`):
   ```text
   [V1] POST /login -> 302
   [V1] GET /allocations/2 (propio) -> 200 | Asset Allocations for John Doe

@@ -4,7 +4,7 @@
 - `ui_idor_allocations_3.png`: captura en el navegador de `http://localhost:4000/allocations/3` con la sesión de `user1`: muestra "Asset Allocations for Will Smith".
 
 Condición: entorno local, `vulnerable/` en Docker, seed por defecto; sesión legítima de `user1` (John Doe, `_id` 2).
-Commit del PoC: `aedaee5`. Fecha de la ejecución: 2026-11-07T03:24Z (22:24 hora local, 2026-11-06).
+Commit del PoC: `e6d57ff`. Fecha de la ejecución: 2026-11-07T03:24Z (22:24 hora local, 2026-11-06).
 
 Resultado: con la sesión de `user1`, `/allocations/2` (propio) devuelve John Doe y `/allocations/3`
 (ajeno) devuelve Will Smith, es decir, datos de otro usuario. Exit code 1 → VULNERABLE.

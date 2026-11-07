@@ -5,7 +5,7 @@
 - `ui_regresion_allocations_2.png`: `http://localhost:4001/allocations/2` con la sesión de `user1`: sigue mostrando "Asset Allocations for John Doe" (regresión).
 
 Condición: entorno local, `mitigated/` reconstruido con el fix; sesión legítima de `user1`.
-Commit del fix: `2a97698` (tag `v1-mitigado`); validación en `d884c51`. Fecha de la ejecución: 2026-11-07T03:24Z (22:24 hora local, 2026-11-06).
+Commit del fix: `8379cba` (tag `v1-mitigado`); validación en `6586ffb`. Fecha de la ejecución: 2026-11-07T03:24Z (22:24 hora local, 2026-11-06).
 
 Resultado: `/allocations/2` y `/allocations/3` devuelven ambos los datos de John Doe. El servidor
 ignora el id de la URL y usa `req.session.userId`, así que no hay acceso a datos ajenos. Exit code 0 → MITIGADO.

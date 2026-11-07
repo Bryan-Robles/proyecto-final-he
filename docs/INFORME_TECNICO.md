@@ -106,7 +106,7 @@ Por cada vulnerabilidad: cambio aplicado (código/config/diseño/control), justi
   - const { userId } = req.params;
   + const { userId } = req.session;
   ```
-  Commit `2a97698` (tag `v1-mitigado`); diff completo con `git diff 47da0cb v1-mitigado -- mitigated/`. Detalle: `docs/vulns/V1-broken-access-control.md` §4.
+  Commit `8379cba` (tag `v1-mitigado`); diff completo con `git diff 47da0cb v1-mitigado -- mitigated/`. Detalle: `docs/vulns/V1-broken-access-control.md` §4.
 
 ### 5.3 V3 — Cryptographic Failures (JuanDa)
 
