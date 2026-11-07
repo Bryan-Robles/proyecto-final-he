@@ -13,9 +13,9 @@ function AllocationsHandler(db) {
         // Fix for A4 Insecure DOR -  take user id from session instead of from URL param
         const { userId } = req.session;
         */
-        const {
-            userId
-        } = req.params;
+        // Fix V1 (A01:2025 Broken Access Control / IDOR): el userId sale de la sesion
+        // del servidor, no del parametro de la URL controlado por el cliente.
+        const { userId } = req.session;
         const {
             threshold
         } = req.query;

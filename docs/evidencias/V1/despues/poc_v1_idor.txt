@@ -1,0 +1,5 @@
+[V1] objetivo: http://localhost:4001  usuario: user1  (fecha: 2026-11-07T03:24:33Z)
+[V1] POST /login -> 302
+[V1] GET /allocations/2 (propio) -> 200 | Asset Allocations for John Doe
+[V1] GET /allocations/3 (ajeno)  -> 200 | Asset Allocations for John Doe
+[V1] RESULTADO: MITIGADO - no se entregan datos de otro usuario
