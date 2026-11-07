@@ -1,5 +1,6 @@
 "use strict";
 
+const helmet = require('helmet');
 const express = require("express");
 const favicon = require("serve-favicon");
 const bodyParser = require("body-parser");
@@ -13,6 +14,8 @@ const http = require("http");
 const marked = require("marked");
 //const nosniff = require('dont-sniff-mimetype');
 const app = express(); // Web framework to handle routing requests
+app.use(helmet());
+app.disable("x-powered-by");
 const routes = require("./app/routes");
 const { port, db, cookieSecret } = require("./config/config"); // Application config properties
 /*
@@ -82,22 +85,20 @@ MongoClient.connect(db, (err, db) => {
         secret: cookieSecret,
         // Both mandatory in Express v4
         saveUninitialized: true,
-        resave: true
-        /*
+        resave: true,
+
         // Fix for A5 - Security MisConfig
         // Use generic cookie name
         key: "sessionId",
-        */
 
-        /*
-        // Fix for A3 - XSS
-        // TODO: Add "maxAge"
+
+
         cookie: {
-            httpOnly: true
-            // Remember to start an HTTPS server to get this working
-            // secure: true
+            httpOnly: true,
+            secure: process.env.COOKIE_SECURE === "true",
+            sameSite: "lax"
         }
-        */
+
 
     }));
 
