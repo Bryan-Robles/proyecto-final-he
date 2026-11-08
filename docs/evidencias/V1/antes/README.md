@@ -4,10 +4,10 @@
 - `ui_idor_allocations_3.png`: captura en el navegador de `http://localhost:4000/allocations/3` con la sesión de `user1`: muestra "Asset Allocations for Will Smith".
 
 Condición: entorno local, `vulnerable/` en Docker, seed por defecto; sesión legítima de `user1` (John Doe, `_id` 2).
-Commit del PoC: `e6d57ff`. Fecha de la ejecución: 2026-11-07T03:24Z (22:24 hora local, 2026-11-06).
+Commit del PoC: `e6d57ff`. Fecha de la ejecución: 2026-11-08T04:26Z (repetido con el PoC ampliado; la captura de UI es del 2026-11-06).
 
 Resultado: con la sesión de `user1`, `/allocations/2` (propio) devuelve John Doe y `/allocations/3`
-(ajeno) devuelve Will Smith, es decir, datos de otro usuario. Exit code 1 → VULNERABLE.
+(ajeno) devuelve Will Smith, es decir, datos de otro usuario. `/allocations/9999` → 500 y `/allocations/3` sin cookie → 302 a `/login`. Exit code 1 → VULNERABLE.
 Los porcentajes cambian en cada arranque del seed; por eso se comparan los nombres, no los números.
 
 Reproducir (la clave demo se pasa por `POC_PASS`, no se publica):
