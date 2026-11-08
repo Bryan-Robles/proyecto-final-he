@@ -25,7 +25,7 @@ Resumen de las 4 vulnerabilidades (detalle completo en `docs/vulns/Vx-*.md`).
 
 | V# | Vulnerabilidad | Categoría OWASP 2025 | Componente afectado (archivo:línea) | Dueño |
 |----|----------------|----------------------|-------------------------------------|-------|
-| V1 | IDOR / Broken Access Control | A01:2025 | `routes/allocations.js:17-18` + `routes/index.js:63` | JuanFra |
+| V1 | IDOR / Broken Access Control | A01:2025 | `routes/allocations.js:16-18` + `routes/index.js:63` | JuanFra |
 | V2 | NoSQL Injection (`$where` en `threshold`) | A05:2025 | `data/allocations-dao.js:78` | Bryan |
 | V3 | Cryptographic Failures (password en texto plano) | A04:2025 | `data/user-dao.js:25` y `:61` | JuanDa |
 | V4 | Security Misconfiguration | A02:2025 | `server.js` (helmet/x-powered-by/cookie/autoescape) | Kevin |
@@ -46,7 +46,7 @@ Por cada vulnerabilidad: condición inicial, técnica/herramienta, petición/pay
   ```bash
   BASE=http://localhost:4000 POC_PASS=<clave_demo_user1> ./poc-scripts/v1_idor.sh
   ```
-- **Resultado:** login `302`; `/allocations/2` → John Doe; `/allocations/3` → Will Smith. `RESULTADO: VULNERABLE`, exit code 1.
+- **Resultado:** login `302`; `/allocations/2` → John Doe; `/allocations/3` → Will Smith; `/allocations/9999` → 500; `/allocations/3` sin cookie → 302 a `/login`. `RESULTADO: VULNERABLE`, exit code 1.
 - **Impacto:** cualquier usuario autenticado lee las asignaciones de inversión de otro cambiando un número en la URL.
 - **Evidencia:** `docs/evidencias/V1/antes/` (`poc_v1_idor.txt`, `ui_idor_allocations_3.png`). Detalle: `docs/vulns/V1-broken-access-control.md` §3.
 
@@ -98,15 +98,20 @@ Por cada vulnerabilidad: cambio aplicado (código/config/diseño/control), justi
 
 ### 5.1 V1 — IDOR / Broken Access Control (JuanFra)
 
-- **Cambio aplicado (solo `mitigated/`):** en `app/routes/allocations.js`, `const { userId } = req.session;` en lugar de `req.params`. El login ya guarda `req.session.userId` (`session.js:116`).
-- **Justificación técnica:** la autorización pasa a depender del identificador de sesión del servidor, que el cliente no puede manipular.
-- **Decisión de diseño:** no se devuelve 403; el servidor ignora el id de la URL y muestra los datos de la sesión. La alternativa (403 si `req.params.userId !== req.session.userId`, salvo admin) quedó descartada por la comparación de tipos número/string.
+- **Cambio aplicado (solo `mitigated/`):** en `app/routes/allocations.js` (líneas 16-25) el handler compara `String(req.params.userId)` con `String(req.session.userId)`; si no coinciden responde **403** y registra `[SEC] Posible IDOR`. La ruta en `routes/index.js:63` no cambió.
+- **Justificación técnica:** la autorización depende del identificador de sesión del servidor, que el cliente no controla, y el intento deja señal de detección. `String()` resuelve la diferencia número (sesión) / string (URL).
+- **Decisión de diseño:** la primera versión ignoraba el id de la URL y respondía 200 con los datos de la sesión. En la revisión del PR se cambió a 403 + log por: semántica REST, riesgo de caché por URL, intento sin detectar y errores de cliente ocultos.
 - **Diff:**
   ```diff
   - const { userId } = req.params;
-  + const { userId } = req.session;
+  + const sessionUserId = String(req.session.userId);
+  + if (String(req.params.userId) !== sessionUserId) {
+  +     console.warn(`[SEC] Posible IDOR: user ${sessionUserId} pidio ${JSON.stringify(req.params.userId)}`);
+  +     return res.status(403).send("Forbidden");
+  + }
+  + const userId = req.session.userId;
   ```
-  Commit `8379cba` (tag `v1-mitigado`); diff completo con `git diff 47da0cb v1-mitigado -- mitigated/`. Detalle: `docs/vulns/V1-broken-access-control.md` §4.
+  Diff completo con `git diff 47da0cb <commit del fix> -- mitigated/`. Detalle: `docs/vulns/V1-broken-access-control.md` §4.
 
 ### 5.3 V3 — Cryptographic Failures (JuanDa)
 
@@ -140,7 +145,7 @@ Matriz de validación. Por cada vulnerabilidad:
 
 | V# | Antes | Después | Regresión | Evidencia |
 |----|-------|---------|-----------|-----------|
-| V1 | PoC en `:4000`: `/allocations/3` con sesión de `user1` → Will Smith, exit 1 | PoC en `:4001`: `/allocations/3` → John Doe (datos de la sesión, sin 403), exit 0 | `/allocations/2` sigue → John Doe | `docs/evidencias/V1/antes/`, `docs/evidencias/V1/despues/` |
+| V1 | PoC en `:4000`: `/allocations/3` con sesión de `user1` → Will Smith, exit 1 | PoC en `:4001`: `/allocations/3` y `/allocations/9999` → 403 + log `[SEC]`, exit 0; sin cookie → 302 a `/login` | `/allocations/2` sigue → John Doe | `docs/evidencias/V1/antes/`, `docs/evidencias/V1/despues/` |
 | V2 | | | | |
 | V3 | PoC en `:4000`: 4/4 contraseñas `TEXTO PLANO` (seed + signup), exit 1 | PoC en `:4001`: 4/4 `BCRYPT (cost=12)`, `$2a$12$`, 60 car., exit 0; logs `[REDACTED]` | Login correcto `302` (`v3test`, `admin`, `user1`); incorrecto `200`; signup OK | `docs/evidencias/V3/antes/`, `docs/evidencias/V3/despues/` |
 | V4 | | | | |
