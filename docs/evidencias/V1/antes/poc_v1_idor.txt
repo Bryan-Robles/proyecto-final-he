@@ -1,0 +1,7 @@
+[V1] objetivo: http://localhost:4000  usuario: user1  (fecha: 2026-11-08T04:26:02Z)
+[V1] POST /login -> 302
+[V1] GET /allocations/2 (propio) -> 200 | Asset Allocations for John Doe
+[V1] GET /allocations/3 (ajeno)  -> 200 | Asset Allocations for Will Smith
+[V1] GET /allocations/9999 (inexistente) -> 500 | <sin datos>
+[V1] GET /allocations/3 (sin cookie) -> 302 (esperado 302 a /login)
+[V1] RESULTADO: VULNERABLE - se leyeron datos de otro usuario (A01:2025)

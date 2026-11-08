@@ -1,0 +1,36 @@
+# 2026-11-08T04:26:21Z :4001, sesion de user1 (_id 2). Cookie omitida.
+$ curl -i -b <cookie_user1> http://localhost:4001/allocations/3
+HTTP/1.1 403 Forbidden
+X-DNS-Prefetch-Control: off
+X-Frame-Options: SAMEORIGIN
+X-Download-Options: noopen
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+Content-Type: text/html; charset=utf-8
+Content-Length: 9
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+Forbidden
+
+
+$ curl -i -b <cookie_user1> http://localhost:4001/allocations/9999
+HTTP/1.1 403 Forbidden
+X-DNS-Prefetch-Control: off
+X-Frame-Options: SAMEORIGIN
+X-Download-Options: noopen
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+Content-Type: text/html; charset=utf-8
+Content-Length: 9
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+Forbidden
+
+
+# Log del servidor (docker compose -f mitigated/docker-compose.yml logs web | grep SEC)
+[SEC] Posible IDOR: user 2 pidio "3"
+[SEC] Posible IDOR: user 2 pidio "9999"
+[SEC] Posible IDOR: user 2 pidio "3"
+[SEC] Posible IDOR: user 2 pidio "9999"
