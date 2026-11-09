@@ -137,7 +137,7 @@ Por cada vulnerabilidad: cambio aplicado (código/config/diseño/control), justi
   + }
   + const userId = req.session.userId;
   ```
-  Diff completo con `git diff 47da0cb <commit del fix> -- mitigated/`. Detalle: `docs/vulns/V1-broken-access-control.md` §4.
+  Diff completo con `git diff 47da0cb v1-mitigado -- mitigated/`. Detalle: `docs/vulns/V1-broken-access-control.md` §4.
 
 ### 5.3 V3 — Cryptographic Failures (JuanDa)
 
@@ -213,6 +213,21 @@ Matriz de validación. Por cada vulnerabilidad:
 
 ## 7. Conclusiones y reflexión ética
 
+### 7.1 V1 — IDOR / Broken Access Control (JuanFra)
+
+**Conclusiones técnicas**
+- El fallo no estaba en la autenticación (el login funciona y `isLoggedIn` redirige bien sin cookie) sino en la **autorización**: el handler confiaba en un identificador que controla el cliente (`req.params.userId`) en lugar del de la sesión del servidor.
+- El arreglo mínimo (usar `req.session.userId`) cerraba la fuga, pero la revisión del PR mostró que no bastaba como diseño: responder 200 con datos de otro usuario rompe la semántica REST, puede mezclar contenido en cachés por URL y no deja señal de ataque. La versión final compara ambos ids, responde **403** y registra `[SEC] Posible IDOR`.
+- Una prueba debe cubrir más que el caso feliz: al ampliar el PoC se vio que, en la versión vulnerable, un id inexistente provoca un 500 no controlado, y en la mitigada devuelve 403.
+- Limitaciones: solo se probó con `user1`; el rol admin recibe 403 al pedir el recurso de otro usuario (no hay excepción por diseño); la defensa vive en el handler, no en un middleware reutilizable para otras rutas con ids en la URL.
+
+**Reflexión ética**
+- Todas las pruebas se hicieron únicamente contra la instancia local en Docker (`:4000` y `:4001`), con las cuentas demo del propio seed del repo. No se tocó infraestructura ni datos de terceros.
+- Las claves demo se pasan por la variable `POC_PASS` y no se guardan en scripts ni en evidencias; las capturas y salidas versionadas no contienen credenciales ni cookies de sesión.
+- El PoC es de solo lectura: lee una vista ajena, no modifica ni borra datos y no genera carga.
+- El mismo trabajo en un sistema real exigiría autorización previa y por escrito, y el hallazgo se reportaría al responsable antes de publicarlo. Un IDOR expone datos personales y financieros, así que el daño de no corregirlo recae sobre las personas usuarias, no sobre la organización.
+- La revisión cruzada cambió una decisión de diseño; la sustentación debe presentarla tal cual (qué se hizo primero y por qué se cambió), sin ocultarla.
+
 ### 7.4 V4 — Security Misconfiguration (Kevin)
 
 **Conclusiones técnicas**
@@ -228,7 +243,6 @@ Matriz de validación. Por cada vulnerabilidad:
 - El PoC es de solo lectura: lee cabeceras de respuesta y la prueba de regresión inicia sesión con la cuenta demo; no modifica ni borra datos y no genera carga.
 - El mismo trabajo en un sistema real exigiría autorización previa y por escrito, incluso para un chequeo de cabeceras aparentemente pasivo, y el hallazgo se reportaría al responsable antes de publicarlo. Una mala configuración parece menor, pero un robo de sesión da acceso a una cuenta con datos personales y financieros, y revelar la tecnología facilita elegir un exploit. El daño recae sobre las personas usuarias, no sobre la organización.
 - La revisión cruzada corrigió dos afirmaciones del primer PR (las cabeceras CSP/HSTS y `secure: true`); la sustentación debe presentarlo tal cual, y declarar que `Secure` no está activo en el entorno local, sin ocultarlo.
-
 
 ## 8. Referencias
 
