@@ -68,6 +68,14 @@
   + }
   + allocationsCol.find(criteria).toArray((err, allocations) => {
   ```
+- **Código de estado 400:** el error de `threshold` inválido se marca (`err.invalidThreshold = true`) y el handler `mitigated/app/routes/allocations.js` responde **HTTP 400** (error del cliente) con un mensaje fijo, en vez de dejar que caiga al `errorHandler` genérico (500). El `errorHandler` es compartido (V4), por eso el mapeo a 400 se hace en el handler de la ruta y no ahí.
+  ```diff
+  - if (err) return next(err);
+  + if (err) {
+  +     if (err.invalidThreshold) return res.status(400).send("Invalid threshold");
+  +     return next(err);
+  + }
+  ```
 
 ## 5. Validación (antes / después)
 Mismo PoC (`poc-scripts/v2_nosqli.py`) contra ambas versiones:
@@ -75,15 +83,15 @@ Mismo PoC (`poc-scripts/v2_nosqli.py`) contra ambas versiones:
 | Prueba | ANTES (`:4000`) | DESPUÉS (`:4001`) |
 |--------|-----------------|-------------------|
 | Línea base (threshold=0) | 1 fila (admin) | 1 fila (admin) |
-| Inyección `0' || '1'=='1` | HTTP 200, **3 filas** (admin, John Doe, Will Smith) | HTTP 500, **0 filas** |
+| Inyección `0' || '1'=='1` | HTTP 200, **3 filas** (admin, John Doe, Will Smith) | HTTP 400, **0 filas** |
 | Regresión (threshold=10) | HTTP 200 (aceptado) | HTTP 200 (aceptado) |
 | XSS `threshold=<script>` | — | no se refleja (mensaje fijo) |
 | Veredicto / exit | VULNERABLE (exit 1) | MITIGADO (exit 0) |
 
-> La regresión se mide por el **código HTTP** (válido → 200, inyección → 500), no por el número de filas: `stocks` es aleatorio en el seed (1–40), así que `$gt:10` puede devolver 0 filas de forma legítima.
+> La regresión se mide por el **código HTTP** (válido → 200, inyección → 400), no por el número de filas: `stocks` es aleatorio en el seed (1–40), así que `$gt:10` puede devolver 0 filas de forma legítima.
 
 - ANTES (vulnerable): la inyección ejecuta JS en `$where` y expone datos de otros usuarios → `docs/evidencias/V2/antes/poc_v2_nosqli.txt`
-- DESPUÉS (mitigado): el payload no pasa la regex → la petición se rechaza (HTTP 500 con mensaje fijo, sin reflejar la entrada); la inyección no devuelve datos ajenos → `docs/evidencias/V2/despues/poc_v2_nosqli.txt`
+- DESPUÉS (mitigado): el payload no pasa la regex → la petición se rechaza con **HTTP 400** (error del cliente) y un mensaje fijo, sin reflejar la entrada; la inyección no devuelve datos ajenos → `docs/evidencias/V2/despues/poc_v2_nosqli.txt`
 - Regresión: con `threshold=10` (entero válido) la funcionalidad legítima sigue devolviendo las asignaciones propias → `docs/evidencias/V2/despues/poc_v2_nosqli.txt`
 
 Reproducir (la clave demo se pasa por `POC_PASS`):

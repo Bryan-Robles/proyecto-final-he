@@ -141,7 +141,7 @@ Por cada vulnerabilidad: cambio aplicado (código/config/diseño/control), justi
 
 ### 5.2 V2 — NoSQL Injection (Bryan)
 
-- **Cambio aplicado (solo `mitigated/app/data/allocations-dao.js`, `getByUserIdAndThreshold`):** `threshold` se valida con `typeof === "string"` + regex `^\d{1,2}$` (entero 0–99); **se elimina `$where`** y la consulta usa el operador nativo `$gt` con el número ya validado. Si la validación falla, se devuelve el error **por `callback` con un mensaje fijo** (`"Invalid threshold"`), sin incluir la entrada del usuario.
+- **Cambio aplicado (`mitigated/app/data/allocations-dao.js` + `app/routes/allocations.js`):** `threshold` se valida con `typeof === "string"` + regex `^\d{1,2}$` (entero 0–99); **se elimina `$where`** y la consulta usa el operador nativo `$gt` con el número ya validado. Si la validación falla, se devuelve el error **por `callback` con un mensaje fijo** (`"Invalid threshold"`, marcado con `err.invalidThreshold`), y el handler de la ruta responde **HTTP 400** (error del cliente), sin incluir la entrada del usuario.
 - **Justificación técnica:**
   - Eliminar `$where` y usar operadores nativos quita por completo el canal de ejecución de código; ninguna entrada del usuario se evalúa como JS.
   - **Regex y no `Number()`:** `Number()` acepta `"1e1"`, `"0x10"`, espacios y no distingue un array (`?threshold=5&threshold=6`); la comprobación de tipo + regex cierra esos casos.
@@ -200,7 +200,7 @@ Matriz de validación. Por cada vulnerabilidad:
 | V# | Antes | Después | Regresión | Evidencia |
 |----|-------|---------|-----------|-----------|
 | V1 | PoC en `:4000`: `/allocations/3` con sesión de `user1` → Will Smith, exit 1 | PoC en `:4001`: `/allocations/3` y `/allocations/9999` → 403 + log `[SEC]`, exit 0; sin cookie → 302 a `/login` | `/allocations/2` sigue → John Doe | `docs/evidencias/V1/antes/`, `docs/evidencias/V1/despues/` |
-| V2 | PoC en `:4000`: inyección `0' || '1'=='1` → HTTP 200, 3 filas (admin, John Doe, Will Smith), exit 1 | PoC en `:4001`: inyección → HTTP 500, 0 filas, exit 0; `threshold=<script>` no se refleja (sin XSS) | `threshold=10` válido → HTTP 200 (aceptado) | `docs/evidencias/V2/antes/`, `docs/evidencias/V2/despues/` |
+| V2 | PoC en `:4000`: inyección `0' || '1'=='1` → HTTP 200, 3 filas (admin, John Doe, Will Smith), exit 1 | PoC en `:4001`: inyección → HTTP 400, 0 filas, exit 0; `threshold=<script>` no se refleja (sin XSS) | `threshold=10` válido → HTTP 200 (aceptado) | `docs/evidencias/V2/antes/`, `docs/evidencias/V2/despues/` |
 | V3 | PoC en `:4000`: 4/4 contraseñas `TEXTO PLANO` (seed + signup), exit 1 | PoC en `:4001`: 4/4 `BCRYPT (cost=12)`, `$2a$12$`, 60 car., exit 0; logs `[REDACTED]` | Login correcto `302` (`v3test`, `admin`, `user1`); incorrecto `200`; signup OK | `docs/evidencias/V3/antes/`, `docs/evidencias/V3/despues/` |
 | V4 | | | | |
 
@@ -227,8 +227,8 @@ Matriz de validación. Por cada vulnerabilidad:
 - La causa raíz no es "validar poco" sino **ejecutar la entrada como código**: el valor de `threshold` se interpolaba dentro de un `$where`, que corre JavaScript en el motor de Mongo. El arreglo correcto es quitar el canal de ejecución (`$where` → operador nativo `$gt`) y sanear el tipo de la entrada, no "escapar" el payload.
 - La primera mitigación cerraba la inyección pero **abría un XSS reflejado**: el `throw` con la entrada cruda llegaba a la página de error, que renderiza `{{error}}` con `autoescape: false`. Lección: un parche debe revisarse como código nuevo; arreglar la vulnerabilidad objetivo no basta si introduce otra. Lo detectó la revisión cruzada (`@j-david06`), no yo.
 - Validar con `Number()` era insuficiente (acepta `"1e1"`, `"0x10"`, espacios y arrays). La regex `^\d{1,2}$` sobre un `string` es más estricta y predecible.
-- Un PoC debe poder **fallar de forma honesta**: la primera versión daba "MITIGADO" si el login fallaba. Se añadió un guard de línea base y la medición por código HTTP (válido → 200, inyección → 500), que es determinista pese a que `stocks` es aleatorio en el seed.
-- Detalle conocido: en `:4001` la inyección responde **HTTP 500** (el error genérico pasa por el `errorHandler`). Sería más correcto un **400** (error del cliente); queda como posible mejora, documentada para la sustentación.
+- Un PoC debe poder **fallar de forma honesta**: la primera versión daba "MITIGADO" si el login fallaba. Se añadió un guard de línea base y la medición por código HTTP (válido → 200, inyección → 400), que es determinista pese a que `stocks` es aleatorio en el seed.
+- Semántica del error: inicialmente el `threshold` inválido caía al `errorHandler` genérico y devolvía **HTTP 500**. Como es un error del cliente, se marcó el error y el handler de la ruta responde **HTTP 400** con un mensaje fijo (sin reflejar la entrada). El mapeo se hace en el handler y no en el `errorHandler`, que es compartido (V4).
 
 **Reflexión ética**
 - Todas las pruebas se hicieron solo contra la instancia local (`:4000` y `:4001`) con las cuentas demo del seed del repo. No se tocó infraestructura ni datos de terceros.

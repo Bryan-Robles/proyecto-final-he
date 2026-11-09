@@ -72,7 +72,11 @@ const AllocationsDAO = function(db){
         let criteria = { userId: parsedUserId };
         if (threshold !== undefined && threshold !== "") {
             if (typeof threshold !== "string" || !/^\d{1,2}$/.test(threshold)) {
-                return callback(new Error("Invalid threshold"), null);
+                // Se marca el error para que el handler responda 400 (error del
+                // cliente) en vez de 500. El mensaje es fijo, sin la entrada.
+                const invalidThresholdError = new Error("Invalid threshold");
+                invalidThresholdError.invalidThreshold = true;
+                return callback(invalidThresholdError, null);
             }
             criteria = {
                 userId: parsedUserId,
