@@ -17,6 +17,7 @@
 #   POC_USER   (obligatoria) usuario de NodeGoat, ej: user1
 #   POC_PASS   (obligatoria) contrasena
 #   BASE_URL   (opcional)    por defecto http://localhost:4001 (version mitigada)
+#   BASE       (opcional)    alias de BASE_URL (igual que v1_idor.sh y v2_nosqli.py)
 #   PROTECTED_PATH (opcional) ruta interna a visitar, por defecto /dashboard
 #
 # Uso:
@@ -28,7 +29,7 @@
 set -uo pipefail
 
 # --- Configuracion -----------------------------------------------------------
-BASE_URL="${BASE_URL:-http://localhost:4001}"
+BASE_URL="${BASE_URL:-${BASE:-http://localhost:4001}}"
 BASE_URL="${BASE_URL%/}"                      # quita "/" final si lo hay
 PROTECTED_PATH="${PROTECTED_PATH:-/dashboard}"
 

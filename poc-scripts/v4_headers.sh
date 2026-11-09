@@ -15,6 +15,7 @@
 #   ./v4_headers.sh                          # por defecto http://localhost:4000/
 #   ./v4_headers.sh http://localhost:4001/   # version mitigada
 #   TARGET_URL=http://localhost:4001/ ./v4_headers.sh
+#   BASE=http://localhost:4001 ./v4_headers.sh   # misma variable que v1_idor.sh y v2_nosqli.py
 # =============================================================================
 
 # -u : error si se usa una variable sin definir
@@ -23,8 +24,8 @@
 set -uo pipefail
 
 # --- Configuracion -----------------------------------------------------------
-# Prioridad: argumento 1 > variable TARGET_URL > valor por defecto.
-URL="${1:-${TARGET_URL:-http://localhost:4000/}}"
+# Prioridad: argumento 1 > TARGET_URL > BASE (igual que V1/V2) > valor por defecto.
+URL="${1:-${TARGET_URL:-${BASE:-http://localhost:4000}}}"
 
 # Cabeceras que Helmet 2.3.0 inyecta (en minusculas: HTTP no distingue
 # mayusculas/minusculas en nombres de cabecera). NO se exige CSP ni HSTS

@@ -20,3 +20,6 @@ Thumbs.db
 dist/
 build/
 coverage/
+
+# PoC: carpeta temporal del smoke test (cookies de sesion)
+poc-scripts/.tmp/
