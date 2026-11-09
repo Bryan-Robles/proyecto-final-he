@@ -28,7 +28,12 @@ function AllocationsHandler(db) {
         } = req.query;
 
         allocationsDAO.getByUserIdAndThreshold(userId, threshold, (err, allocations) => {
-            if (err) return next(err);
+            if (err) {
+                // V2 (A05:2025): threshold invalido es un error del cliente -> 400,
+                // no 500. Mensaje fijo, sin reflejar la entrada (evita XSS).
+                if (err.invalidThreshold) return res.status(400).send("Invalid threshold");
+                return next(err);
+            }
             return res.render("allocations", {
                 userId,
                 allocations,
