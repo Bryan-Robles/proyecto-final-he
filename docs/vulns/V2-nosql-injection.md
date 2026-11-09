@@ -1,7 +1,7 @@
 # [V2] NoSQL Injection (Server-Side JS vía `$where`)
 
 ## 1. Identificación
-- Categoría OWASP: A05:2025 — Injection (equiv. A03:2021). CWE-943 (consulta con elementos de datos no neutralizados), CWE-89/CWE-94 (ejecución de código vía `$where`).
+- Categoría OWASP: A05:2025 — Injection (equiv. A03:2021). CWE-943 (consulta con elementos de datos no neutralizados), CWE-94 (ejecución de código vía `$where`).
 - Dueño: Bryan (`@Bryan-Robles`) | Revisor PR: JuanDa (`@j-david06`) | Rama: `feat/v2-nosqli-bryan` | Tag: `v2-mitigado` | PR: #4
 - Commits clave:
 

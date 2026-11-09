@@ -95,7 +95,7 @@ Relación vulnerabilidad → impacto (CIA) → riesgo → categoría OWASP, just
 
 | Aspecto | Detalle |
 |---|---|
-| Impacto CIA | **C: Alto** (lectura de datos de otros usuarios). **I: Medio** (el motor ejecuta JS arbitrario; limitado a lo que la consulta permite). **A: Alto potencial** (un `$where` con bucle infinito bloquea el servidor de BD; no se ejecutó). |
+| Impacto CIA | **C: Alto** (lectura de datos de otros usuarios). **I: Bajo** (solo lectura: el `$where` se evalúa dentro de un `find`; en Mongo 4.4 ese JS no puede escribir datos). **A: Alto potencial** (un `$where` con bucle infinito bloquea el servidor de BD; no se ejecutó). |
 | Probabilidad | Alta: basta una cuenta válida y manipular un query param; no requiere herramientas. |
 | Riesgo | **Alto.** |
 | Categoría | **A05:2025 Injection** (A03:2021); CWE-943, CWE-94. |
@@ -165,7 +165,7 @@ Por cada vulnerabilidad: cambio aplicado (código/config/diseño/control), justi
   + }
   + allocationsCol.find(criteria).toArray((err, allocations) => {
   ```
-  Commits `4893b99` y `29159a2`; diff completo con `git diff 47da0cb v2-mitigado -- mitigated/`. Detalle: `docs/vulns/V2-nosql-injection.md` §4.
+  Commits `4893b99` y `29159a2`; diff completo con `git diff v2-mitigado^1 v2-mitigado -- mitigated/` (solo `allocations-dao.js`). Detalle: `docs/vulns/V2-nosql-injection.md` §4.
 
 ### 5.3 V3 — Cryptographic Failures (JuanDa)
 
