@@ -1,0 +1,9 @@
+Objetivo: http://localhost:4001  (usuario: user1)
+-----------------------------------------------
+[PASS] GET /login responde 200
+[PASS] GET /dashboard sin sesion NO da 200 (devolvio 302)
+[PASS] POST /login -> 302 hacia /dashboard
+[PASS] Se recibio la cookie de sesion (sessionId)
+[PASS] GET /dashboard con sesion responde 200
+-----------------------------------------------
+SMOKE TEST: OK (la app opera normal tras la mitigacion)
