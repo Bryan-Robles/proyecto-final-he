@@ -1,6 +1,6 @@
 $ git rev-parse --short HEAD
 d1e7076
-$ date && POC_USER=user1 POC_PASS='User1_123' ./poc-scripts/regression_smoke.sh
+$ date && POC_USER=user1 POC_PASS=<clave_demo> ./poc-scripts/regression_smoke.sh
 Sun, Nov  8, 2026 11:29:54 PM
 Objetivo: http://localhost:4001  (usuario: user1)
 -----------------------------------------------

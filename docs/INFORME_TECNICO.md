@@ -84,8 +84,8 @@ Por cada vulnerabilidad: condición inicial, técnica/herramienta, petición/pay
   ```bash
   ./poc-scripts/v4_headers.sh http://localhost:4000/
   ```
-- **Resultado:** faltan `x-frame-options`, `x-content-type-options`, `x-download-options`, `x-dns-prefetch-control` y `x-xss-protection`, y la respuesta expone `X-Powered-By: Express`. Son 6 fallas: el script imprime VULNERABLE (6 problema(s) de configuracion de cabeceras) y termina con exit code 1. En el código, `session()` de `vulnerable/server.js` no define `cookie` (el bloque está comentado), así que la cookie de sesión no lleva `HttpOnly`, `Secure` ni `SameSite`.
-- **Impacto:** el servidor revela su tecnología (Express), lo que permite buscar exploits por versión; sin `X-Frame-Options` la app puede incrustarse en un iframe ajeno (clickjacking); sin `nosniff` el navegador puede reinterpretar el tipo de contenido; y una cookie de sesión sin `HttpOnly` es legible desde JavaScript si existe otra falla que lo permita.
+- **Resultado:** faltan `x-frame-options`, `x-content-type-options`, `x-download-options`, `x-dns-prefetch-control` y `x-xss-protection`, y la respuesta expone `X-Powered-By: Express`. Son 6 fallas: el script imprime VULNERABLE (6 problema(s) de configuracion de cabeceras) y termina con exit code 1. En el código, `session()` de `vulnerable/server.js` no define `cookie` (el bloque está comentado), así que la cookie de sesión usa el nombre por defecto `connect.sid` y no lleva `Secure` ni `SameSite` (`HttpOnly` ya lo aplica `express-session` por defecto).
+- **Impacto:** el servidor revela su tecnología (Express), lo que permite buscar exploits por versión; sin `X-Frame-Options` la app puede incrustarse en un iframe ajeno (clickjacking); sin `nosniff` el navegador puede reinterpretar el tipo de contenido; y una cookie de sesión sin `Secure` ni `SameSite` viaja sin cifrar sobre HTTP y no restringe su envío en peticiones entre sitios.
 - **Evidencia:** `docs/evidencias/V4/antes/` (`Evidencia_01_V4_Cabeceras_Vulnerables.png` y `evidencia_vulnerable.txt`). Detalle: `docs/vulns/V4-security-misconfig.md` §3.
 
 ## 4. Análisis de impacto y relación con OWASP
@@ -134,10 +134,10 @@ Relación vulnerabilidad → impacto (CIA) → riesgo → categoría OWASP, just
 
 | Aspecto | Detalle |
 |---|---|
-| Impacto CIA | **C: Medio** (se expone el stack tecnológico y una cookie de sesión sin `HttpOnly` es legible desde JavaScript). **I: Medio** indirecto (clickjacking y suplantación con una sesión robada permiten ejecutar acciones como el usuario). **A: Bajo.** |
-| Probabilidad | Media: las cabeceras se ven con una sola petición y sin herramientas especiales; explotar la cookie o el iframe requiere una falla adicional (p. ej. XSS) o un sitio atacante. |
+| Impacto CIA | **C: Medio** (se expone el stack tecnológico y la cookie de sesión no lleva `Secure`, por lo que viaja sin cifrar sobre HTTP). **I: Medio** indirecto (clickjacking y suplantación con una sesión robada permiten ejecutar acciones como el usuario). **A: Bajo.** |
+| Probabilidad | Media: las cabeceras se ven con una sola petición y sin herramientas especiales; aprovechar el iframe o la cookie sin `Secure` ni `SameSite` requiere un sitio atacante o acceso a la red, porque la sesión viaja por HTTP. |
 | Riesgo | **Medio-alto.** Por sí sola rara vez da acceso, pero amplifica otras vulnerabilidades de la misma app. |
-| Categoría | **A02:2025 Security Misconfiguration** (A05:2021); CWE-16 (configuración), CWE-200 (exposición de información), CWE-1004 (cookie sin `HttpOnly`), CWE-1021 (clickjacking). |
+| Categoría | **A02:2025 Security Misconfiguration** (A05:2021); CWE-16 (configuración), CWE-200 (exposición de información), CWE-1275 (cookie sensible con atributo `SameSite` inadecuado), CWE-1021 (clickjacking). |
 
 **Por qué A02 y no otra:**
 - **No es A01 (Broken Access Control):** no falta una comprobación de pertenencia del recurso; lo que falta son controles de endurecimiento del servidor.
@@ -223,7 +223,7 @@ Por cada vulnerabilidad: cambio aplicado (código/config/diseño/control), justi
   1. `app.use(helmet())` con Helmet 2.3.0 (versión fijada en el lockfile), que añade 5 cabeceras: `X-Frame-Options`, `X-Content-Type-Options`, `X-Download-Options`, `X-DNS-Prefetch-Control` y `X-XSS-Protection`.
   2. `app.disable("x-powered-by")` para ocultar la cabecera que expone Express.
   3. Sesión: `key: "sessionId"` (nombre genérico en vez del `connect.sid` por defecto) y `cookie: { httpOnly: true, secure: process.env.COOKIE_SECURE === "true", sameSite: "lax" }`.
-- **Justificación técnica:** cada control cierra un vector concreto. `X-Frame-Options: SAMEORIGIN` impide el clickjacking desde otros orígenes; `nosniff` evita que el navegador adivine el tipo de contenido; `HttpOnly` impide que JavaScript lea la cookie; `SameSite=Lax` evita que se envíe en peticiones POST entre sitios; y ocultar `X-Powered-By` y el nombre por defecto de la cookie reduce la información que recibe un atacante.
+- **Justificación técnica:** cada control cierra un vector concreto. `X-Frame-Options: SAMEORIGIN` impide el clickjacking desde otros orígenes; `nosniff` evita que el navegador adivine el tipo de contenido; `httpOnly: true` deja explícito que JavaScript no pueda leer la cookie (ya era el valor por defecto de `express-session`); `SameSite=Lax` evita que se envíe en peticiones POST entre sitios; y ocultar `X-Powered-By` y el nombre por defecto de la cookie reduce la información que recibe un atacante.
 - **Decisión de diseño:** la primera versión usaba `secure: true`. En la revisión del PR se demostró que, con `express-session` 1.15.6 y el servidor sirviendo por HTTP (`http.createServer`), la cookie con `Secure` no se emite y la sesión no persiste. Se cambió a `secure: process.env.COOKIE_SECURE === "true"`: queda en `false` por defecto y se activa únicamente cuando el servidor corra bajo HTTPS. También se corrigió la descripción del PR y de la ficha: Helmet 2.3.0 no emite CSP ni HSTS, solo las cinco cabeceras listadas arriba.
 - **Riesgo residual:** mientras el servidor use HTTP, la cookie viaja sin el flag `Secure`. Cerrarlo exige servir por HTTPS, algo que queda fuera del alcance de V4.
 - **Validación:** `poc-scripts/v4_headers.sh` (cabeceras presentes y `X-Powered-By` ausente) y `poc-scripts/regression_smoke.sh` (login y navegación siguen funcionando). Resultados en la matriz de la sección 6.
@@ -309,7 +309,7 @@ La mitigación aplicó cifrado de un solo sentido con `bcrypt` (cost=12): salt p
 ### 7.4 V4 — Security Misconfiguration (Kevin)
 
 **Conclusiones técnicas**
-- El fallo no estaba en la lógica de la aplicación sino en la **configuración**: Express arranca sin cabeceras de seguridad, revela su tecnología y crea la cookie de sesión sin flags. Los controles existían en el repositorio, pero comentados; una mala configuración es muchas veces un control que está disponible y no se activó.
+- El fallo no estaba en la lógica de la aplicación sino en la **configuración**: Express arranca sin cabeceras de seguridad, revela su tecnología y crea la cookie de sesión con el nombre por defecto y sin `Secure` ni `SameSite`. Los controles existían en el repositorio, pero comentados; una mala configuración es muchas veces un control que está disponible y no se activó.
 - Cada cabecera cierra un vector concreto, pero **Helmet 2.3.0 emite solo cinco**. El primer PR afirmaba CSP y HSTS, y la revisión mostró que no era cierto. Lo que se documenta debe salir de lo que el servidor realmente responde (script y capturas), no de lo que se espera de la librería.
 - El flag `Secure` no se puede activar a ciegas: con `secure: true` sobre HTTP la cookie no se emite y el login deja de persistir. Una mitigación que rompe la aplicación no es una mitigación; por eso se condicionó a `COOKIE_SECURE` y se añadió la prueba de regresión.
 - Una prueba de regresión debe incluir un control negativo y verificar la cookie: `regression_smoke.sh` comprueba que `/dashboard` sin sesión no da 200, que llega `sessionId` y que con ella la ruta interna responde 200.
@@ -317,7 +317,7 @@ La mitigación aplicó cifrado de un solo sentido con `bcrypt` (cost=12): salt p
 
 **Reflexión ética**
 - Todas las pruebas se hicieron únicamente contra la instancia local en Docker (`:4000` y `:4001`), con la cuenta demo del propio seed del repo. No se tocó infraestructura ni datos de terceros.
-- Las credenciales demo se pasan por las variables `POC_USER` y `POC_PASS` y no se guardan en los scripts. Las evidencias muestran el comando con la cuenta demo pública de NodeGoat (`user1`, documentada en el README del proyecto), sin credenciales reales. Las capturas muestran el identificador de una sesión de la instancia local de pruebas, sin valor fuera de ese entorno; no contienen contraseñas.
+- Las credenciales demo se pasan por las variables `POC_USER` y `POC_PASS` y no se guardan en scripts ni en evidencias: el comando registrado en `evidencia_regresion.txt` muestra la clave como `<clave_demo>`. Las capturas muestran el identificador de una sesión de la instancia local de pruebas, sin valor fuera de ese entorno; no contienen contraseñas.
 - El PoC es de solo lectura: lee cabeceras de respuesta y la prueba de regresión inicia sesión con la cuenta demo; no modifica ni borra datos y no genera carga.
 - El mismo trabajo en un sistema real exigiría autorización previa y por escrito, incluso para un chequeo de cabeceras aparentemente pasivo, y el hallazgo se reportaría al responsable antes de publicarlo. Una mala configuración parece menor, pero un robo de sesión da acceso a una cuenta con datos personales y financieros, y revelar la tecnología facilita elegir un exploit. El daño recae sobre las personas usuarias, no sobre la organización.
 - La revisión cruzada corrigió dos afirmaciones del primer PR (las cabeceras CSP/HSTS y `secure: true`); la sustentación debe presentarlo tal cual, y declarar que `Secure` no está activo en el entorno local, sin ocultarlo.

@@ -5,15 +5,15 @@
 - Dueño: Kevin | Revisor PR: JuanFranG | Rama: `feat/v4-sec-misconf-kevin` | Commits clave: `0f5b8bd`, `d74a853`, `66ba532`, `d1e7076`, `24555f9` (PoC: `v4_headers.sh`, `regression_smoke.sh` y evidencias)
 
 ## 2. Análisis
-- Descripción técnica: la app arranca sin cabeceras de seguridad ni endurecimiento. `helmet` está importado pero comentado, `x-powered-by` no se desactiva (expone Express), la cookie de sesión no tiene flags `HttpOnly`/`Secure`/`SameSite`, el motor de plantillas `swig` tiene `autoescape: false`, CSRF está desactivado y el servidor corre en HTTP plano.
+- Descripción técnica: la app arranca sin cabeceras de seguridad ni endurecimiento. `helmet` está importado pero comentado, `x-powered-by` no se desactiva (expone Express), la cookie de sesión usa el nombre por defecto connect.sidy no defineSecureniSameSite (HttpOnlyya lo aplicaexpress-session por defecto), el motor de plantillas `swig` tiene `autoescape: false`, CSRF está desactivado y el servidor corre en HTTP plano.
 - Componente/archivo/config afectada (todo en `vulnerable/server.js`):
   - helmet y `app.disable("x-powered-by")` comentados (bloque A5)
-  - `session({... saveUninitialized: true, resave: true ...})` sin `cookie: { httpOnly, secure, sameSite }`
+  - `session({... saveUninitialized: true, resave: true ...})` sin `cookie: { secure, sameSite }` ni `key` propio (`HttpOnly` ya lo aplica `express-session` por defecto)
   - `swig.setDefaults({ autoescape: false })`
   - `csrf()` comentado
   - `http.createServer(app)` en vez de HTTPS
 - Causa raíz: configuración por defecto/insegura; faltan controles de endurecimiento en el middleware.
-- Impacto y riesgo: facilita clickjacking, MIME sniffing, y robo de cookie por JS (sin HttpOnly). Riesgo medio-alto por amplificar otras vulnerabilidades. *(Nota: `autoescape: false`, CSRF y HTTP plano están fuera del alcance de V4; corresponden a vulnerabilidades de otros integrantes).*
+- Impacto y riesgo: facilita clickjacking, MIME sniffing, y exposición de la cookie de sesión (sin SecureniSameSite; HttpOnly ya estaba activo por defecto). Riesgo medio-alto por amplificar otras vulnerabilidades. *(Nota: `autoescape: false`, CSRF y HTTP plano están fuera del alcance de V4; corresponden a vulnerabilidades de otros integrantes).*
 
 ## 3. Explotación controlada (PoC reproducible)
 ## 3. Explotación controlada (PoC reproducible)
