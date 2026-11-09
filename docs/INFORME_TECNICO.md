@@ -236,6 +236,14 @@ Matriz de validación. Por cada vulnerabilidad:
 - Las claves demo se pasan por `POC_PASS` y no se guardan en scripts ni evidencias; las salidas versionadas no contienen credenciales.
 - La inyección NoSQL y el IDOR (V1) exponen ambos datos ajenos, pero son fallos distintos; presentarlos como "el mismo bug" sería incorrecto. La sustentación debe explicar por qué V2 es inyección (ejecución de código) y V1 es autorización.
 
+### 7.3 V3 — Cryptographic Failures (JuanDa)
+
+**Conclusión técnica.** El almacenamiento de contraseñas en texto plano (`user-dao.js:25`) y su comparación directa (`fromDB === fromUser`, `user-dao.js:61`) son una falla criptográfica de raíz: cualquier lectura de la base de datos —inyección, volcado, backup mal protegido u operador con acceso— exponía todas las credenciales reutilizables. La causa no fue un algoritmo débil sino la ausencia total de protección sobre un dato que nunca debe ser recuperable.
+
+La mitigación aplicó cifrado de un solo sentido con `bcrypt` (cost=12): salt por usuario en el registro (`bcrypt.hash` asíncrono, `addUser`, `user-dao.js:27`) y verificación con `bcrypt.compare(plainFromUser, hashFromDB, cb)` asíncrono en el login (`user-dao.js:82`), con API asíncrona para no bloquear el event loop. El seed `artifacts/db-reset.js:104` usa `hashSync` por ser un script de un solo uso, de modo que los usuarios demo se crean ya con hash y se eliminan las contraseñas en claro del arranque. Validación antes/después: en `:4000` las 4 contraseñas se leen en texto plano (seed + signup); en `:4001` las 4 persisten como hash `bcrypt` (`$2a$12$`) no reversible, con login legítimo operando (regresión verde). El impacto baja de "exposición total de credenciales" a "hash computacionalmente costoso de revertir", alineado con A04:2025.
+
+**Reflexión ética.** Custodiar credenciales implica responsabilidad directa: una sola decisión de diseño omitida compromete la privacidad de cada usuario registrado. Todo el ejercicio se ejecutó exclusivamente sobre la instancia local controlada, sin tocar sistemas de terceros ni infraestructura institucional. Ninguna contraseña, token o clave propia se versionó: las credenciales de prueba pasan por `POC_PASS`, nunca en archivos. Proteger un secreto no es endurecimiento opcional sino obligación mínima hacia el usuario, y el conocimiento ofensivo adquirido obliga a un uso estrictamente defensivo y autorizado.
+
 ## 8. Referencias
 
 - OWASP Top 10:2025 — https://owasp.org/Top10/
