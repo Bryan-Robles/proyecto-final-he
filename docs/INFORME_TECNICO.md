@@ -28,7 +28,7 @@ Resumen de las 4 vulnerabilidades (detalle completo en `docs/vulns/Vx-*.md`).
 | V1 | IDOR / Broken Access Control | A01:2025 | `routes/allocations.js:16-18` + `routes/index.js:63` | JuanFra |
 | V2 | NoSQL Injection (`$where` en `threshold`) | A05:2025 | `data/allocations-dao.js:78` | Bryan |
 | V3 | Cryptographic Failures (password en texto plano) | A04:2025 | `data/user-dao.js:25` y `:61` | JuanDa |
-| V4 | Security Misconfiguration | A02:2025 | `server.js` (helmet/x-powered-by/cookie/autoescape) | Kevin |
+| V4 | Security Misconfiguration | A02:2025 | server.js:38-65 (helmet y x-powered-by comentados) y :78-102 (sesión sin cookie) | Kevin |
 
 Detalle completo en `docs/vulns/Vx-*.md` (descripción, causa raíz, impacto, PoC, mitigación, validación).
 
@@ -76,6 +76,18 @@ Por cada vulnerabilidad: condición inicial, técnica/herramienta, petición/pay
 - **Impacto:** quien lea la colección `users` obtiene credenciales utilizables de inmediato, sin cracking, y puede tomar cualquier cuenta, incluida `admin`.
 - **Evidencia:** `docs/evidencias/V3/antes/` (`poc_v3_seed.*`, `poc_v3_signup.*`). Detalle: `docs/vulns/V3-crypto-failures.md` §3.
 
+### 3.4 V4 — Security Misconfiguration (Kevin)
+
+- **Condición inicial:** `vulnerable/` en Docker (`http://localhost:4000`), entorno local, sin sesión iniciada.
+- **Técnica/herramienta:** inspección de las cabeceras de respuesta HTTP, primero a mano en las herramientas de desarrollador (pestaña Network) y después automatizada con `poc-scripts/v4_headers.sh` (curl lee solo las cabeceras, sin cuerpo, y las compara contra las cinco que emite Helmet 2.3.0).
+- **Comando:**
+  ```bash
+  ./poc-scripts/v4_headers.sh http://localhost:4000/
+  ```
+- **Resultado:** faltan `x-frame-options`, `x-content-type-options`, `x-download-options`, `x-dns-prefetch-control` y `x-xss-protection`, y la respuesta expone `X-Powered-By: Express`. Son 6 fallas: el script imprime VULNERABLE (6 problema(s) de configuracion de cabeceras) y termina con exit code 1. En el código, `session()` de `vulnerable/server.js` no define `cookie` (el bloque está comentado), así que la cookie de sesión usa el nombre por defecto `connect.sid` y no lleva `Secure` ni `SameSite` (`HttpOnly` ya lo aplica `express-session` por defecto).
+- **Impacto:** el servidor revela su tecnología (Express), lo que permite buscar exploits por versión; sin `X-Frame-Options` la app puede incrustarse en un iframe ajeno (clickjacking); sin `nosniff` el navegador puede reinterpretar el tipo de contenido; y una cookie de sesión sin `Secure` ni `SameSite` viaja sin cifrar sobre HTTP y no restringe su envío en peticiones entre sitios.
+- **Evidencia:** `docs/evidencias/V4/antes/` (`Evidencia_01_V4_Cabeceras_Vulnerables.png` y `evidencia_vulnerable.txt`). Detalle: `docs/vulns/V4-security-misconfig.md` §3.
+
 ## 4. Análisis de impacto y relación con OWASP
 
 Relación vulnerabilidad → impacto (CIA) → riesgo → categoría OWASP, justificando por qué esa categoría y no otra.
@@ -117,6 +129,20 @@ Relación vulnerabilidad → impacto (CIA) → riesgo → categoría OWASP, just
 - **No es A07 (Authentication Failures):** el flujo de autenticación hace lo que debe (pide y verifica la credencial). Lo que falla es la protección criptográfica del dato en reposo: falta una función de derivación de clave con sal.
 - **No es A02 (Security Misconfiguration):** no es un ajuste ni un valor por defecto. Es la ausencia de un control criptográfico en el código de la capa de datos (`user-dao.js`) y en el aprovisionamiento (`db-reset.js`).
 - **No se solapa con V2:** V2 es el vector que permite leer datos. V3 determina qué obtiene el atacante cuando los lee. Son fallos de naturaleza distinta y su mitigación es independiente.
+
+### 4.4 V4 — Security Misconfiguration (Kevin)
+
+| Aspecto | Detalle |
+|---|---|
+| Impacto CIA | **C: Medio** (se expone el stack tecnológico y la cookie de sesión no lleva `Secure`, por lo que viaja sin cifrar sobre HTTP). **I: Medio** indirecto (clickjacking y suplantación con una sesión robada permiten ejecutar acciones como el usuario). **A: Bajo.** |
+| Probabilidad | Media: las cabeceras se ven con una sola petición y sin herramientas especiales; aprovechar el iframe o la cookie sin `Secure` ni `SameSite` requiere un sitio atacante o acceso a la red, porque la sesión viaja por HTTP. |
+| Riesgo | **Medio-alto.** Por sí sola rara vez da acceso, pero amplifica otras vulnerabilidades de la misma app. |
+| Categoría | **A02:2025 Security Misconfiguration** (A05:2021); CWE-16 (configuración), CWE-200 (exposición de información), CWE-1275 (cookie sensible con atributo `SameSite` inadecuado), CWE-1021 (clickjacking). |
+
+**Por qué A02 y no otra:**
+- **No es A01 (Broken Access Control):** no falta una comprobación de pertenencia del recurso; lo que falta son controles de endurecimiento del servidor.
+- **No es A07 (Authentication Failures):** el login funciona y verifica la credencial. Lo que está mal es la configuración por defecto del middleware de sesión y de las cabeceras.
+- **No es A05 (Injection):** no se inyecta código. Esta falla amplifica una inyección (XSS), pero su causa es distinta y su mitigación es independiente.
 
 ## 5. Mitigaciones implementadas
 
@@ -190,6 +216,41 @@ Por cada vulnerabilidad: cambio aplicado (código/config/diseño/control), justi
   ```
   Commits `af58f1c`, `9c93620` y `f24fca9`; diff completo con `git diff 03ae3e5 v3-mitigado -- mitigated/`. Detalle: `docs/vulns/V3-crypto-failures.md` §4.
 
+
+### 5.4 V4 — Security Misconfiguration (Kevin)
+
+- **Cambio aplicado (solo `mitigated/`):** en `server.js`:
+  1. `app.use(helmet())` con Helmet 2.3.0 (versión fijada en el lockfile), que añade 5 cabeceras: `X-Frame-Options`, `X-Content-Type-Options`, `X-Download-Options`, `X-DNS-Prefetch-Control` y `X-XSS-Protection`.
+  2. `app.disable("x-powered-by")` para ocultar la cabecera que expone Express.
+  3. Sesión: `key: "sessionId"` (nombre genérico en vez del `connect.sid` por defecto) y `cookie: { httpOnly: true, secure: process.env.COOKIE_SECURE === "true", sameSite: "lax" }`.
+- **Justificación técnica:** cada control cierra un vector concreto. `X-Frame-Options: SAMEORIGIN` impide el clickjacking desde otros orígenes; `nosniff` evita que el navegador adivine el tipo de contenido; `httpOnly: true` deja explícito que JavaScript no pueda leer la cookie (ya era el valor por defecto de `express-session`); `SameSite=Lax` evita que se envíe en peticiones POST entre sitios; y ocultar `X-Powered-By` y el nombre por defecto de la cookie reduce la información que recibe un atacante.
+- **Decisión de diseño:** la primera versión usaba `secure: true`. En la revisión del PR se demostró que, con `express-session` 1.15.6 y el servidor sirviendo por HTTP (`http.createServer`), la cookie con `Secure` no se emite y la sesión no persiste. Se cambió a `secure: process.env.COOKIE_SECURE === "true"`: queda en `false` por defecto y se activa únicamente cuando el servidor corra bajo HTTPS. También se corrigió la descripción del PR y de la ficha: Helmet 2.3.0 no emite CSP ni HSTS, solo las cinco cabeceras listadas arriba.
+- **Riesgo residual:** mientras el servidor use HTTP, la cookie viaja sin el flag `Secure`. Cerrarlo exige servir por HTTPS, algo que queda fuera del alcance de V4.
+- **Validación:** `poc-scripts/v4_headers.sh` (cabeceras presentes y `X-Powered-By` ausente) y `poc-scripts/regression_smoke.sh` (login y navegación siguen funcionando). Resultados en la matriz de la sección 6.
+- **Diff:**
+  ```diff
+  + const helmet = require('helmet');
+  ...
+  + app.use(helmet());
+  + app.disable("x-powered-by");
+  ...
+    app.use(session({
+        secret: cookieSecret,
+        saveUninitialized: true,
+  -     resave: true
+  +     resave: true,
+  +     key: "sessionId",
+  +     cookie: {
+  +         httpOnly: true,
+  +         secure: process.env.COOKIE_SECURE === "true",
+  +         sameSite: "lax"
+  +     }
+    }));
+  ```
+  Commits `0f5b8bd`, `d74a853` y `66ba532`. Detalle: `docs/vulns/V4-security-misconfig.md` §4.
+
+
+
 ## 6. Validación antes/después
 
 Matriz de validación. Por cada vulnerabilidad:
@@ -202,7 +263,7 @@ Matriz de validación. Por cada vulnerabilidad:
 | V1 | PoC en `:4000`: `/allocations/3` con sesión de `user1` → Will Smith, exit 1 | PoC en `:4001`: `/allocations/3` y `/allocations/9999` → 403 + log `[SEC]`, exit 0; sin cookie → 302 a `/login` | `/allocations/2` sigue → John Doe | `docs/evidencias/V1/antes/`, `docs/evidencias/V1/despues/` |
 | V2 | PoC en `:4000`: inyección `0' || '1'=='1` → HTTP 200, 3 filas (admin, John Doe, Will Smith), exit 1 | PoC en `:4001`: inyección → HTTP 400, 0 filas, exit 0; `threshold=<script>` no se refleja (sin XSS) | `threshold=10` válido → HTTP 200 (aceptado) | `docs/evidencias/V2/antes/`, `docs/evidencias/V2/despues/` |
 | V3 | PoC en `:4000`: 4/4 contraseñas `TEXTO PLANO` (seed + signup), exit 1 | PoC en `:4001`: 4/4 `BCRYPT (cost=12)`, `$2a$12$`, 60 car., exit 0; logs `[REDACTED]` | Login correcto `302` (`v3test`, `admin`, `user1`); incorrecto `200`; signup OK | `docs/evidencias/V3/antes/`, `docs/evidencias/V3/despues/` |
-| V4 | | | | |
+| V4 | PoC en `:4000`: `v4_headers.sh` → 5 cabeceras ausentes + `X-Powered-By: Express`, `VULNERABLE`, exit 1 | PoC en `:4001`: 5 cabeceras de Helmet presentes, sin `X-Powered-By`, `MITIGADO`, exit 0; cookie `sessionId` con `HttpOnly` y `SameSite=Lax` | `regression_smoke.sh` en `:4001` (con `COOKIE_SECURE` sin definir): 5 `[PASS]`, login `302` → `/dashboard`, ruta interna `200` con sesión, `/dashboard` sin sesión no da 200 | `docs/evidencias/V4/antes/` (`evidencia_vulnerable.txt`, `Evidencia_01_V4_Cabeceras_Vulnerables.png`), `docs/evidencias/V4/despues/` (`evidencia_mitigada.txt`, `evidencia_regresion.txt`, `Evidencia_02_V4_Cabeceras_Seguras.png`, `Evidencia_03_V4_Sesion_Activa.png`, `Evidencia_04_V4_Cookie_Flags.png`) |
 
 ## 7. Conclusiones y reflexión ética
 
@@ -220,6 +281,7 @@ Matriz de validación. Por cada vulnerabilidad:
 - El PoC es de solo lectura: lee una vista ajena, no modifica ni borra datos y no genera carga.
 - El mismo trabajo en un sistema real exigiría autorización previa y por escrito, y el hallazgo se reportaría al responsable antes de publicarlo. Un IDOR expone datos personales y financieros, así que el daño de no corregirlo recae sobre las personas usuarias, no sobre la organización.
 - La revisión cruzada cambió una decisión de diseño; la sustentación debe presentarla tal cual (qué se hizo primero y por qué se cambió), sin ocultarla.
+
 
 ### 7.2 V2 — NoSQL Injection (Bryan)
 
@@ -243,6 +305,22 @@ Matriz de validación. Por cada vulnerabilidad:
 La mitigación aplicó cifrado de un solo sentido con `bcrypt` (cost=12): salt por usuario en el registro (`bcrypt.hash` asíncrono, `addUser`, `user-dao.js:27`) y verificación con `bcrypt.compare(plainFromUser, hashFromDB, cb)` asíncrono en el login (`user-dao.js:82`), con API asíncrona para no bloquear el event loop. El seed `artifacts/db-reset.js:104` usa `hashSync` por ser un script de un solo uso, de modo que los usuarios demo se crean ya con hash y se eliminan las contraseñas en claro del arranque. Validación antes/después: en `:4000` las 4 contraseñas se leen en texto plano (seed + signup); en `:4001` las 4 persisten como hash `bcrypt` (`$2a$12$`) no reversible, con login legítimo operando (regresión verde). El impacto baja de "exposición total de credenciales" a "hash computacionalmente costoso de revertir", alineado con A04:2025.
 
 **Reflexión ética.** Custodiar credenciales implica responsabilidad directa: una sola decisión de diseño omitida compromete la privacidad de cada usuario registrado. Todo el ejercicio se ejecutó exclusivamente sobre la instancia local controlada, sin tocar sistemas de terceros ni infraestructura institucional. Ninguna contraseña, token o clave propia se versionó: las credenciales de prueba pasan por `POC_PASS`, nunca en archivos. Proteger un secreto no es endurecimiento opcional sino obligación mínima hacia el usuario, y el conocimiento ofensivo adquirido obliga a un uso estrictamente defensivo y autorizado.
+
+### 7.4 V4 — Security Misconfiguration (Kevin)
+
+**Conclusiones técnicas**
+- El fallo no estaba en la lógica de la aplicación sino en la **configuración**: Express arranca sin cabeceras de seguridad, revela su tecnología y crea la cookie de sesión con el nombre por defecto y sin `Secure` ni `SameSite`. Los controles existían en el repositorio, pero comentados; una mala configuración es muchas veces un control que está disponible y no se activó.
+- Cada cabecera cierra un vector concreto, pero **Helmet 2.3.0 emite solo cinco**. El primer PR afirmaba CSP y HSTS, y la revisión mostró que no era cierto. Lo que se documenta debe salir de lo que el servidor realmente responde (script y capturas), no de lo que se espera de la librería.
+- El flag `Secure` no se puede activar a ciegas: con `secure: true` sobre HTTP la cookie no se emite y el login deja de persistir. Una mitigación que rompe la aplicación no es una mitigación; por eso se condicionó a `COOKIE_SECURE` y se añadió la prueba de regresión.
+- Una prueba de regresión debe incluir un control negativo y verificar la cookie: `regression_smoke.sh` comprueba que `/dashboard` sin sesión no da 200, que llega `sessionId` y que con ella la ruta interna responde 200.
+- Limitaciones: `Secure` queda desactivado en el entorno local (HTTP), así que la cookie viaja sin cifrar; no se probó el flujo completo bajo HTTPS; Helmet 2.3.0 no cubre CSP ni HSTS (exigiría actualizar la dependencia o configurarlos aparte); el script valida la presencia de las cabeceras, no su valor; y `autoescape: false`, CSRF y el HTTP plano quedan fuera de V4 y corresponden a otras vulnerabilidades.
+
+**Reflexión ética**
+- Todas las pruebas se hicieron únicamente contra la instancia local en Docker (`:4000` y `:4001`), con la cuenta demo del propio seed del repo. No se tocó infraestructura ni datos de terceros.
+- Las credenciales demo se pasan por las variables `POC_USER` y `POC_PASS` y no se guardan en scripts ni en evidencias: el comando registrado en `evidencia_regresion.txt` muestra la clave como `<clave_demo>`. Las capturas muestran el identificador de una sesión de la instancia local de pruebas, sin valor fuera de ese entorno; no contienen contraseñas.
+- El PoC es de solo lectura: lee cabeceras de respuesta y la prueba de regresión inicia sesión con la cuenta demo; no modifica ni borra datos y no genera carga.
+- El mismo trabajo en un sistema real exigiría autorización previa y por escrito, incluso para un chequeo de cabeceras aparentemente pasivo, y el hallazgo se reportaría al responsable antes de publicarlo. Una mala configuración parece menor, pero un robo de sesión da acceso a una cuenta con datos personales y financieros, y revelar la tecnología facilita elegir un exploit. El daño recae sobre las personas usuarias, no sobre la organización.
+- La revisión cruzada corrigió dos afirmaciones del primer PR (las cabeceras CSP/HSTS y `secure: true`); la sustentación debe presentarlo tal cual, y declarar que `Secure` no está activo en el entorno local, sin ocultarlo.
 
 ## 8. Referencias
 

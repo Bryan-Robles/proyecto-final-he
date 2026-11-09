@@ -1,0 +1,15 @@
+$ git rev-parse --short HEAD
+d1e7076
+$ date && ./poc-scripts/v4_headers.sh http://localhost:4000/
+Sun, Nov  8, 2026  8:47:26 PM
+URL analizada : http://localhost:4000/
+Respuesta     : http/1.1 302 found
+-----------------------------------------------
+[FALTA] ausente  : x-frame-options
+[FALTA] ausente  : x-content-type-options
+[FALTA] ausente  : x-download-options
+[FALTA] ausente  : x-dns-prefetch-control
+[FALTA] ausente  : x-xss-protection
+[FALLA] expuesta : x-powered-by (revela el stack tecnologico)
+-----------------------------------------------
+VULNERABLE (6 problema(s) de configuracion de cabeceras)

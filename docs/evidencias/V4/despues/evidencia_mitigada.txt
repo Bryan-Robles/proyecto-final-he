@@ -1,0 +1,15 @@
+$ git rev-parse --short HEAD
+d1e7076
+$ date && ./poc-scripts/v4_headers.sh http://localhost:4001/
+Sun, Nov  8, 2026  8:48:42 PM
+URL analizada : http://localhost:4001/
+Respuesta     : http/1.1 302 found
+-----------------------------------------------
+[OK]    presente : x-frame-options
+[OK]    presente : x-content-type-options
+[OK]    presente : x-download-options
+[OK]    presente : x-dns-prefetch-control
+[OK]    presente : x-xss-protection
+[OK]    oculta   : x-powered-by
+-----------------------------------------------
+MITIGADO
