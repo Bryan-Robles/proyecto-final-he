@@ -2,25 +2,28 @@
 
 ## 1. Identificación
 - Categoría OWASP: A02:2025 — Security Misconfiguration (equiv. A05:2021)
-- Dueño: Kevin | Revisor PR: JuanFranG | Rama: `feat/v4-sec-misconf-kevin` | Commits clave: `0f5b8bd`, `d74a853`
+- Dueño: Kevin | Revisor PR: JuanFranG | Rama: `feat/v4-sec-misconf-kevin` | Commits clave: `0f5b8bd`, `d74a853` (mitigación), `24555f9` (PoC y smoke), `74a4bf4` (ajustes de revisión del PR #10)
 
 ## 2. Análisis
-- Descripción técnica: la app arranca sin cabeceras de seguridad ni endurecimiento. `helmet` está importado pero comentado, `x-powered-by` no se desactiva (expone Express), la cookie de sesión no tiene flags `HttpOnly`/`Secure`/`SameSite`, el motor de plantillas `swig` tiene `autoescape: false`, CSRF está desactivado y el servidor corre en HTTP plano.
+- Descripción técnica: la app arranca sin cabeceras de seguridad ni endurecimiento. `helmet` está importado pero comentado, `x-powered-by` no se desactiva (expone Express), la cookie de sesión usa el nombre por defecto `connect.sid` y no define `SameSite` ni `Secure` (`HttpOnly` ya viene activo por defecto en `express-session`; ver `docs/evidencias/V4/antes/evidencia_cookie.txt`), el motor de plantillas `swig` tiene `autoescape: false`, CSRF está desactivado y el servidor corre en HTTP plano.
 - Componente/archivo/config afectada (todo en `vulnerable/server.js`):
   - helmet y `app.disable("x-powered-by")` comentados (bloque A5)
-  - `session({... saveUninitialized: true, resave: true ...})` sin `cookie: { httpOnly, secure, sameSite }`
+  - `session({... saveUninitialized: true, resave: true ...})` sin `key` y sin `cookie: { secure, sameSite }` (el bloque está comentado)
   - `swig.setDefaults({ autoescape: false })`
   - `csrf()` comentado
   - `http.createServer(app)` en vez de HTTPS
 - Causa raíz: configuración por defecto/insegura; faltan controles de endurecimiento en el middleware.
-- Impacto y riesgo: facilita clickjacking, MIME sniffing, y robo de cookie por JS (sin HttpOnly). Riesgo medio-alto por amplificar otras vulnerabilidades. *(Nota: `autoescape: false`, CSRF y HTTP plano están fuera del alcance de V4; corresponden a vulnerabilidades de otros integrantes).*
+- Impacto y riesgo: facilita clickjacking, MIME sniffing, y envío de la cookie en peticiones entre sitios (sin `SameSite`). Riesgo medio-alto por amplificar otras vulnerabilidades. *(Nota: `autoescape: false`, CSRF y HTTP plano están fuera del alcance de V4; corresponden a vulnerabilidades de otros integrantes).*
 
 ## 3. Explotación controlada (PoC reproducible)
 - Condición inicial: app vulnerable corriendo en `http://localhost:4000`.
-- Técnica/herramienta: inspección de cabeceras HTTP en herramientas de desarrollador (pestaña Network).
-- Petición/payload/comando ejecutado: Petición GET a la ruta raíz `/` (o `/login`).
-- Resultado obtenido: La respuesta revela la cabecera `X-Powered-By: Express` y se evidencia la ausencia total de cabeceras de seguridad. Evidencia: `docs/evidencias/V4/antes/Evidencia_01_V4_Cabeceras_Vulnerables.png`.
-- Explicación del impacto: superficie ampliada por ausencia de controles y revelación de stack tecnológico.
+- Técnica/herramienta: lectura de las cabeceras de respuesta HTTP, primero a mano en las herramientas de desarrollador (pestaña Network) y después automatizada con `poc-scripts/v4_headers.sh` (curl sin cuerpo, compara contra las 5 cabeceras que emite Helmet 2.3.0 y la ausencia de `X-Powered-By`).
+- Petición/payload/comando ejecutado:
+  ```bash
+  ./poc-scripts/v4_headers.sh http://localhost:4000/
+  ```
+- Resultado obtenido: faltan `x-frame-options`, `x-content-type-options`, `x-download-options`, `x-dns-prefetch-control` y `x-xss-protection`, y se expone `X-Powered-By: Express`: `VULNERABLE (6 problema(s))`, exit 1. La cookie llega como `connect.sid` con solo `HttpOnly` (por defecto), sin `SameSite` ni `Secure`. Evidencia: `docs/evidencias/V4/antes/` (`evidencia_vulnerable.txt`, `evidencia_cookie.txt`, `Evidencia_01_V4_Cabeceras_Vulnerables.png`), con fecha y commit en cada archivo.
+- Explicación del impacto: superficie ampliada por ausencia de controles y revelación del stack tecnológico.
 
 ## 4. Mitigación
 - Cambio aplicado: habilitar `helmet` versión 2.3.0 (inyecta `X-Frame-Options`, `X-Content-Type-Options`, `X-Download-Options`, `X-DNS-Prefetch-Control`, `X-XSS-Protection`), `app.disable("x-powered-by")` manual, y cookie de sesión con `httpOnly`, `sameSite: "lax"` y `secure` controlado por la variable `COOKIE_SECURE` (solo se activa bajo HTTPS), y nombre de cookie genérico (key: "sessionId") en lugar del nombre por defecto.
@@ -47,6 +50,7 @@
   ```
 
 ## 5. Validación (antes / después)
-- ANTES (vulnerable): El panel de red muestra `x-powered-by` expuesto y faltan cabeceras de seguridad → evidencia `docs/evidencias/V4/antes/Evidencia_01_V4_Cabeceras_Vulnerables.png`.
-- DESPUÉS (mitigado, app en `http://localhost:4001`): Helmet 2.3.0 añade las 5 cabeceras de seguridad, se oculta `x-powered-by` → evidencia `docs/evidencias/V4/despues/Evidencia_02_V4_Cabeceras_Seguras.png`.
-- Regresión: La navegación y el inicio de sesión operan sin romperse bajo HTTP (POST /login responde 302 hacia /dashboard con la sesión activa) → evidencia `docs/evidencias/V4/despues/Evidencia_03_V4_Sesion_Activa.png`. Flags de la cookie (HttpOnly, SameSite=Lax) → evidencia `docs/evidencias/V4/despues/Evidencia_04_V4_Cookie_Flags.png`.
+- ANTES (vulnerable, `:4000`): `v4_headers.sh` → `VULNERABLE (6 problema(s))`, exit 1 → `docs/evidencias/V4/antes/evidencia_vulnerable.txt` y `Evidencia_01_V4_Cabeceras_Vulnerables.png`. Cookie `connect.sid` sin `SameSite` → `antes/evidencia_cookie.txt`.
+- DESPUÉS (mitigado, `:4001`): `v4_headers.sh` → `MITIGADO`, exit 0 (Helmet 2.3.0 añade las 5 cabeceras y se oculta `X-Powered-By`) → `docs/evidencias/V4/despues/evidencia_mitigada.txt` y `Evidencia_02_V4_Cabeceras_Seguras.png`. Cookie `sessionId` con `HttpOnly; SameSite=Lax` → `despues/evidencia_cookie.txt` y `Evidencia_04_V4_Cookie_Flags.png`.
+- Regresión: `poc-scripts/regression_smoke.sh` en `:4001` → 5 `[PASS]` (login 302 a `/dashboard`, cookie `sessionId` recibida, `/dashboard` 200 con sesión y no 200 sin ella) → `despues/evidencia_regresion.txt` y `Evidencia_03_V4_Sesion_Activa.png`.
+- Limitación: `Secure` queda en `false` por defecto porque el servidor usa HTTP; con `COOKIE_SECURE=true` sobre HTTP la cookie no se emite y la sesión no persiste. El script valida la presencia de las cabeceras, no su valor.
