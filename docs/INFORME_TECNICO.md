@@ -111,7 +111,7 @@ Por cada vulnerabilidad: cambio aplicado (código/config/diseño/control), justi
   + }
   + const userId = req.session.userId;
   ```
-  Diff completo con `git diff 47da0cb <commit del fix> -- mitigated/`. Detalle: `docs/vulns/V1-broken-access-control.md` §4.
+  Diff completo con `git diff 47da0cb v1-mitigado -- mitigated/`. Detalle: `docs/vulns/V1-broken-access-control.md` §4.
 
 ### 5.3 V3 — Cryptographic Failures (JuanDa)
 
@@ -152,7 +152,22 @@ Matriz de validación. Por cada vulnerabilidad:
 
 ## 7. Conclusiones y reflexión ética
 
-### JuanDa — V3: Cryptographic Failures (A04:2025)
+### 7.1 V1 — IDOR / Broken Access Control (JuanFra)
+
+**Conclusiones técnicas**
+- El fallo no estaba en la autenticación (el login funciona y `isLoggedIn` redirige bien sin cookie) sino en la **autorización**: el handler confiaba en un identificador que controla el cliente (`req.params.userId`) en lugar del de la sesión del servidor.
+- El arreglo mínimo (usar `req.session.userId`) cerraba la fuga, pero la revisión del PR mostró que no bastaba como diseño: responder 200 con datos de otro usuario rompe la semántica REST, puede mezclar contenido en cachés por URL y no deja señal de ataque. La versión final compara ambos ids, responde **403** y registra `[SEC] Posible IDOR`.
+- Una prueba debe cubrir más que el caso feliz: al ampliar el PoC se vio que, en la versión vulnerable, un id inexistente provoca un 500 no controlado, y en la mitigada devuelve 403.
+- Limitaciones: solo se probó con `user1`; el rol admin recibe 403 al pedir el recurso de otro usuario (no hay excepción por diseño); la defensa vive en el handler, no en un middleware reutilizable para otras rutas con ids en la URL.
+
+**Reflexión ética**
+- Todas las pruebas se hicieron únicamente contra la instancia local en Docker (`:4000` y `:4001`), con las cuentas demo del propio seed del repo. No se tocó infraestructura ni datos de terceros.
+- Las claves demo se pasan por la variable `POC_PASS` y no se guardan en scripts ni en evidencias; las capturas y salidas versionadas no contienen credenciales ni cookies de sesión.
+- El PoC es de solo lectura: lee una vista ajena, no modifica ni borra datos y no genera carga.
+- El mismo trabajo en un sistema real exigiría autorización previa y por escrito, y el hallazgo se reportaría al responsable antes de publicarlo. Un IDOR expone datos personales y financieros, así que el daño de no corregirlo recae sobre las personas usuarias, no sobre la organización.
+- La revisión cruzada cambió una decisión de diseño; la sustentación debe presentarla tal cual (qué se hizo primero y por qué se cambió), sin ocultarla.
+
+### 7.3 V3 — Cryptographic Failures (JuanDa)
 
 **Conclusión técnica.** El almacenamiento de contraseñas en texto plano (`user-dao.js:25`) y su comparación directa (`fromDB === fromUser`, `user-dao.js:61`) son una falla criptográfica de raíz: cualquier lectura de la base de datos —inyección, volcado, backup mal protegido u operador con acceso— exponía todas las credenciales reutilizables. La causa no fue un algoritmo débil sino la ausencia total de protección sobre un dato que nunca debe ser recuperable.
 
