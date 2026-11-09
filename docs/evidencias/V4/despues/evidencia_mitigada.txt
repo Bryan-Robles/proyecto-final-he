@@ -1,4 +1,5 @@
-Keanc@PC-KEV MINGW64 ~/Downloads/U/Hacking ético/proyecto-final-he (main)
+$ git rev-parse --short HEAD
+d1e7076
 $ date && ./poc-scripts/v4_headers.sh http://localhost:4001/
 Sun, Nov  8, 2026  8:48:42 PM
 URL analizada : http://localhost:4001/
