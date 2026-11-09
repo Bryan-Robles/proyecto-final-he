@@ -50,6 +50,19 @@ Por cada vulnerabilidad: condición inicial, técnica/herramienta, petición/pay
 - **Impacto:** cualquier usuario autenticado lee las asignaciones de inversión de otro cambiando un número en la URL.
 - **Evidencia:** `docs/evidencias/V1/antes/` (`poc_v1_idor.txt`, `ui_idor_allocations_3.png`). Detalle: `docs/vulns/V1-broken-access-control.md` §3.
 
+### 3.2 V2 — NoSQL Injection (Bryan)
+
+- **Condición inicial:** `vulnerable/` en Docker (`http://localhost:4000`), seed por defecto (3 usuarios: admin, user1=John Doe, user2=Will Smith). Sesión legítima de `admin` (clave por `POC_PASS`). Entorno local.
+- **Técnica/herramienta:** inyección en el query param `threshold` de `GET /allocations/:userId`, automatizada con `poc-scripts/v2_nosqli.py` (Python, solo lectura). Compara una petición normal contra una con payload y cuenta las filas `Asset Allocations for ...`.
+- **Payload:** `threshold = 0' || '1'=='1`. El `$where` queda como `this.userId == 1 && this.stocks > '0' || '1'=='1'`, que por precedencia (`&&` antes de `||`) es siempre verdadero y devuelve todas las asignaciones.
+- **Comando:**
+  ```bash
+  BASE=http://localhost:4000 POC_PASS=<clave_demo> python3 poc-scripts/v2_nosqli.py
+  ```
+- **Resultado:** línea base (threshold=0) → 1 fila (admin); con inyección → HTTP 200, **3 filas** (admin, John Doe, Will Smith). `RESULTADO: VULNERABLE`, exit code 1.
+- **Impacto:** la entrada del usuario se ejecuta como JavaScript en el motor de Mongo (`$where`), lo que permite leer las asignaciones de otros usuarios (y, en teoría, un DoS por bucle infinito que **no se ejecutó** por las condiciones éticas).
+- **Evidencia:** `docs/evidencias/V2/antes/` (`poc_v2_nosqli.txt`, `README.md`). Detalle: `docs/vulns/V2-nosql-injection.md` §3.
+
 ### 3.3 V3 — Cryptographic Failures (JuanDa)
 
 - **Condición inicial:** `vulnerable/` en Docker (`http://localhost:4000`, commit `03ae3e5`), seed por defecto con 3 usuarios. Entorno local.
@@ -77,6 +90,19 @@ Relación vulnerabilidad → impacto (CIA) → riesgo → categoría OWASP, just
 | Categoría | **A01:2025 Broken Access Control**; CWE-639 (autorización basada en una clave controlada por el usuario). |
 
 **Por qué A01 y no otra:** el flujo de autenticación funciona; lo que falta es la comprobación de que el recurso pertenece al usuario autenticado. No es A07 (Authentication Failures) porque la identidad se verifica bien, y no es A05 (Injection) porque no se inyecta código.
+
+### 4.2 V2 — NoSQL Injection (Bryan)
+
+| Aspecto | Detalle |
+|---|---|
+| Impacto CIA | **C: Alto** (lectura de datos de otros usuarios). **I: Medio** (el motor ejecuta JS arbitrario; limitado a lo que la consulta permite). **A: Alto potencial** (un `$where` con bucle infinito bloquea el servidor de BD; no se ejecutó). |
+| Probabilidad | Alta: basta una cuenta válida y manipular un query param; no requiere herramientas. |
+| Riesgo | **Alto.** |
+| Categoría | **A05:2025 Injection** (A03:2021); CWE-943, CWE-94. |
+
+**Por qué A05 y no otra:**
+- **No es A01 (Broken Access Control) aunque también exponga datos ajenos:** la causa raíz es distinta. En V2 la **entrada se ejecuta como código** en el motor de Mongo (`$where`); en V1 el servidor confía en el `:userId` de la URL sin ejecutar nada. La mitigación también difiere (sanear el tipo de la entrada y quitar `$where` vs. atar la autorización a la sesión).
+- **Se descartó el "bypass de login" con `{"$gt":""}`:** NodeGoat compara el password en JavaScript (`user-dao.js:61`), no dentro de la consulta, así que ese operador no evade el login. El vector real y demostrable es la inyección de JS vía `$where` en `threshold`.
 
 ### 4.3 V3 — Cryptographic Failures (JuanDa)
 
@@ -113,6 +139,34 @@ Por cada vulnerabilidad: cambio aplicado (código/config/diseño/control), justi
   ```
   Diff completo con `git diff 47da0cb v1-mitigado -- mitigated/`. Detalle: `docs/vulns/V1-broken-access-control.md` §4.
 
+### 5.2 V2 — NoSQL Injection (Bryan)
+
+- **Cambio aplicado (solo `mitigated/app/data/allocations-dao.js`, `getByUserIdAndThreshold`):** `threshold` se valida con `typeof === "string"` + regex `^\d{1,2}$` (entero 0–99); **se elimina `$where`** y la consulta usa el operador nativo `$gt` con el número ya validado. Si la validación falla, se devuelve el error **por `callback` con un mensaje fijo** (`"Invalid threshold"`), sin incluir la entrada del usuario.
+- **Justificación técnica:**
+  - Eliminar `$where` y usar operadores nativos quita por completo el canal de ejecución de código; ninguna entrada del usuario se evalúa como JS.
+  - **Regex y no `Number()`:** `Number()` acepta `"1e1"`, `"0x10"`, espacios y no distingue un array (`?threshold=5&threshold=6`); la comprobación de tipo + regex cierra esos casos.
+  - **Error por `callback` con mensaje fijo:** un `throw` con la entrada cruda se reflejaba en la página de error (`error-template.html` usa `{{error}}` y `server.js` tiene `autoescape: false`) → **XSS reflejado** que la versión vulnerable no tenía. Hallazgo de la revisión de `@j-david06`; el mensaje final no contiene la entrada.
+  - `express-mongo-sanitize` **no** habría frenado este caso: quita claves `$`/`.` del body/query, pero aquí el vector es el **valor** de `threshold`, no un operador como clave.
+- **Diff:**
+  ```diff
+  - const searchCriteria = () => {
+  -     if (threshold) {
+  -         return { $where: `this.userId == ${parsedUserId} && this.stocks > '${threshold}'` };
+  -     }
+  -     return { userId: parsedUserId };
+  - };
+  - allocationsCol.find(searchCriteria()).toArray((err, allocations) => {
+  + let criteria = { userId: parsedUserId };
+  + if (threshold !== undefined && threshold !== "") {
+  +     if (typeof threshold !== "string" || !/^\d{1,2}$/.test(threshold)) {
+  +         return callback(new Error("Invalid threshold"), null);
+  +     }
+  +     criteria = { userId: parsedUserId, stocks: { $gt: Number(threshold) } };
+  + }
+  + allocationsCol.find(criteria).toArray((err, allocations) => {
+  ```
+  Commits `4893b99` y `29159a2`; diff completo con `git diff 47da0cb v2-mitigado -- mitigated/`. Detalle: `docs/vulns/V2-nosql-injection.md` §4.
+
 ### 5.3 V3 — Cryptographic Failures (JuanDa)
 
 - **Cambio aplicado (solo `mitigated/`):**
@@ -146,7 +200,7 @@ Matriz de validación. Por cada vulnerabilidad:
 | V# | Antes | Después | Regresión | Evidencia |
 |----|-------|---------|-----------|-----------|
 | V1 | PoC en `:4000`: `/allocations/3` con sesión de `user1` → Will Smith, exit 1 | PoC en `:4001`: `/allocations/3` y `/allocations/9999` → 403 + log `[SEC]`, exit 0; sin cookie → 302 a `/login` | `/allocations/2` sigue → John Doe | `docs/evidencias/V1/antes/`, `docs/evidencias/V1/despues/` |
-| V2 | | | | |
+| V2 | PoC en `:4000`: inyección `0' || '1'=='1` → HTTP 200, 3 filas (admin, John Doe, Will Smith), exit 1 | PoC en `:4001`: inyección → HTTP 500, 0 filas, exit 0; `threshold=<script>` no se refleja (sin XSS) | `threshold=10` válido → HTTP 200 (aceptado) | `docs/evidencias/V2/antes/`, `docs/evidencias/V2/despues/` |
 | V3 | PoC en `:4000`: 4/4 contraseñas `TEXTO PLANO` (seed + signup), exit 1 | PoC en `:4001`: 4/4 `BCRYPT (cost=12)`, `$2a$12$`, 60 car., exit 0; logs `[REDACTED]` | Login correcto `302` (`v3test`, `admin`, `user1`); incorrecto `200`; signup OK | `docs/evidencias/V3/antes/`, `docs/evidencias/V3/despues/` |
 | V4 | | | | |
 
@@ -166,6 +220,21 @@ Matriz de validación. Por cada vulnerabilidad:
 - El PoC es de solo lectura: lee una vista ajena, no modifica ni borra datos y no genera carga.
 - El mismo trabajo en un sistema real exigiría autorización previa y por escrito, y el hallazgo se reportaría al responsable antes de publicarlo. Un IDOR expone datos personales y financieros, así que el daño de no corregirlo recae sobre las personas usuarias, no sobre la organización.
 - La revisión cruzada cambió una decisión de diseño; la sustentación debe presentarla tal cual (qué se hizo primero y por qué se cambió), sin ocultarla.
+
+### 7.2 V2 — NoSQL Injection (Bryan)
+
+**Conclusiones técnicas**
+- La causa raíz no es "validar poco" sino **ejecutar la entrada como código**: el valor de `threshold` se interpolaba dentro de un `$where`, que corre JavaScript en el motor de Mongo. El arreglo correcto es quitar el canal de ejecución (`$where` → operador nativo `$gt`) y sanear el tipo de la entrada, no "escapar" el payload.
+- La primera mitigación cerraba la inyección pero **abría un XSS reflejado**: el `throw` con la entrada cruda llegaba a la página de error, que renderiza `{{error}}` con `autoescape: false`. Lección: un parche debe revisarse como código nuevo; arreglar la vulnerabilidad objetivo no basta si introduce otra. Lo detectó la revisión cruzada (`@j-david06`), no yo.
+- Validar con `Number()` era insuficiente (acepta `"1e1"`, `"0x10"`, espacios y arrays). La regex `^\d{1,2}$` sobre un `string` es más estricta y predecible.
+- Un PoC debe poder **fallar de forma honesta**: la primera versión daba "MITIGADO" si el login fallaba. Se añadió un guard de línea base y la medición por código HTTP (válido → 200, inyección → 500), que es determinista pese a que `stocks` es aleatorio en el seed.
+- Detalle conocido: en `:4001` la inyección responde **HTTP 500** (el error genérico pasa por el `errorHandler`). Sería más correcto un **400** (error del cliente); queda como posible mejora, documentada para la sustentación.
+
+**Reflexión ética**
+- Todas las pruebas se hicieron solo contra la instancia local (`:4000` y `:4001`) con las cuentas demo del seed del repo. No se tocó infraestructura ni datos de terceros.
+- El payload de **bucle infinito** (`'};while(true){}'`) se documenta como riesgo pero **no se ejecutó**: habría sido un DoS, prohibido por las condiciones del proyecto. El PoC usa solo una condición booleana de lectura.
+- Las claves demo se pasan por `POC_PASS` y no se guardan en scripts ni evidencias; las salidas versionadas no contienen credenciales.
+- La inyección NoSQL y el IDOR (V1) exponen ambos datos ajenos, pero son fallos distintos; presentarlos como "el mismo bug" sería incorrecto. La sustentación debe explicar por qué V2 es inyección (ejecución de código) y V1 es autorización.
 
 ## 8. Referencias
 

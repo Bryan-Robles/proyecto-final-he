@@ -1,8 +1,16 @@
 # [V2] NoSQL Injection (Server-Side JS vía `$where`)
 
 ## 1. Identificación
-- Categoría OWASP: A05:2025 — Injection (equiv. A03:2021)
-- Dueño: Bryan | Revisor PR: JuanDa | Rama: `feat/v2-nosqli-bryan` | Commits clave: <hashes>
+- Categoría OWASP: A05:2025 — Injection (equiv. A03:2021). CWE-943 (consulta con elementos de datos no neutralizados), CWE-89/CWE-94 (ejecución de código vía `$where`).
+- Dueño: Bryan (`@Bryan-Robles`) | Revisor PR: JuanDa (`@j-david06`) | Rama: `feat/v2-nosqli-bryan` | Tag: `v2-mitigado` | PR: #4
+- Commits clave:
+
+| Commit | Tipo | Contenido |
+|---|---|---|
+| `72e7854` | test(v2) | PoC `poc-scripts/v2_nosqli.py` y evidencia ANTES |
+| `4893b99` | fix(v2) | Primera mitigación: validar `threshold` entero y usar `$gt` en vez de `$where` |
+| `dbfd14d` | test(v2) | Validación antes/después + evidencia DESPUÉS |
+| `29159a2` | fix(v2) | Revisión de `@j-david06`: evita XSS reflejado (error por `callback` sin la entrada), validación con regex, PoC con guard de login/regresión/`POC_PASS` |
 
 > **Nota del equipo:** la guía operativa sugería bypass de login con `{"$gt":""}`. En NodeGoat **ese payload no funciona**: el password se compara en JavaScript (`fromDB === fromUser`, `user-dao.js:61`), no dentro de la consulta Mongo, así que un operador no evade el login. La NoSQL Injection real y demostrable es la inyección de JavaScript del lado servidor mediante `$where` en el parámetro `threshold`. Misma categoría OWASP (A05 Injection).
 

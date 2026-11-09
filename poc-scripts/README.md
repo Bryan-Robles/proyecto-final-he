@@ -4,10 +4,12 @@ Scripts de prueba de concepto, **solo contra la instancia local** (localhost:400
 
 | Script | Vuln | Propósito |
 |--------|------|-----------|
-| `v1_idor.sh` | V1 | Comprobar acceso a datos de otro usuario cambiando el identificador |
-| `v2_nosqli.py` | V2 | Comprobar bypass de login por inyección NoSQL |
-| `v3_check_hash.js` | V3 | Inspeccionar cómo se almacena el password en Mongo |
+| `v1_idor.sh` | V1 | Leer datos de otro usuario cambiando el id en `/allocations/:userId` (IDOR) |
+| `v2_nosqli.py` | V2 | Inyección NoSQL (`$where`) en el parámetro `threshold` de `/allocations/:userId` |
+| `v3_check_hash.js` | V3 | Inspeccionar cómo se almacena el password en Mongo (texto plano vs bcrypt) |
 | `v4_headers.sh` | V4 | Revisar cabeceras de seguridad HTTP |
 | `regression_smoke.sh` | — | Verificar que la funcionalidad legítima sigue operando |
 
-Cada script debe imprimir resultado reproducible (comando → salida). Rellenar el cuerpo de cada uno en el Día 3 (PoC). Mantener los `TODO` hasta que el dueño de la vulnerabilidad los complete.
+Cada script imprime un resultado reproducible (comando → salida) y un código de salida: **1 = vulnerable, 0 = mitigado** (2 = error en los que lo soportan).
+
+Las credenciales demo se pasan por variables de entorno (`POC_PASS`, y `POC_USER` donde aplique), **nunca** en los archivos. `v2_nosqli.py` usa `POC_USER=admin` por defecto; `v1_idor.sh` usa `user1`.
