@@ -1,6 +1,7 @@
-Keanc@PC-KEV MINGW64 ~/Downloads/U/Hacking ético/proyecto-final-he (main)
-$ date && ./poc-scripts/v4_headers.sh http://localhost:4000/
-Sun, Nov  8, 2026  8:47:26 PM
+# Fecha (UTC): 2026-11-09T03:49:28Z
+# Commit de los scripts: 74a4bf4
+# Entorno: instancia local en Docker; vulnerable/ en :4000
+$ ./poc-scripts/v4_headers.sh http://localhost:4000/
 URL analizada : http://localhost:4000/
 Respuesta     : http/1.1 302 found
 -----------------------------------------------
@@ -12,3 +13,4 @@ Respuesta     : http/1.1 302 found
 [FALLA] expuesta : x-powered-by (revela el stack tecnologico)
 -----------------------------------------------
 VULNERABLE (6 problema(s) de configuracion de cabeceras)
+exit=1

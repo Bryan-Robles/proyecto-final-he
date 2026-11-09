@@ -1,0 +1,5 @@
+# Fecha (UTC): 2026-11-09T03:49:28Z
+# Commit de los scripts: 74a4bf4
+# Entorno: instancia local en Docker; vulnerable/ en :4000
+$ curl -si -d "userName=user1&password=<clave_demo>" http://localhost:4000/login | grep -i set-cookie   # valor omitido
+set-cookie: connect.sid=<valor-omitido>; Path=/; HttpOnly

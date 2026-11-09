@@ -1,3 +1,7 @@
+# Fecha (UTC): 2026-11-09T03:49:28Z
+# Commit de los scripts: 74a4bf4
+# Entorno: instancia local en Docker; mitigated/ en :4001, cuenta demo user1 (clave por POC_PASS, no se publica)
+$ POC_USER=user1 POC_PASS=<clave_demo> ./poc-scripts/regression_smoke.sh
 Objetivo: http://localhost:4001  (usuario: user1)
 -----------------------------------------------
 [PASS] GET /login responde 200
@@ -7,3 +11,4 @@ Objetivo: http://localhost:4001  (usuario: user1)
 [PASS] GET /dashboard con sesion responde 200
 -----------------------------------------------
 SMOKE TEST: OK (la app opera normal tras la mitigacion)
+exit=0

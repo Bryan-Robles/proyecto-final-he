@@ -1,6 +1,7 @@
-Keanc@PC-KEV MINGW64 ~/Downloads/U/Hacking ético/proyecto-final-he (main)
-$ date && ./poc-scripts/v4_headers.sh http://localhost:4001/
-Sun, Nov  8, 2026  8:48:42 PM
+# Fecha (UTC): 2026-11-09T03:49:28Z
+# Commit de los scripts: 74a4bf4
+# Entorno: instancia local en Docker; mitigated/ en :4001
+$ ./poc-scripts/v4_headers.sh http://localhost:4001/
 URL analizada : http://localhost:4001/
 Respuesta     : http/1.1 302 found
 -----------------------------------------------
@@ -12,3 +13,4 @@ Respuesta     : http/1.1 302 found
 [OK]    oculta   : x-powered-by
 -----------------------------------------------
 MITIGADO
+exit=0
