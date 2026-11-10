@@ -5,6 +5,8 @@ Equipo: JuanFra · Bryan · JuanDa · Kevin
 
 Documento de cierre: estado final del repositorio antes de la sustentación.
 
+**Evaluación (confirmada con el docente):** 30 pts entrega + 90 pts sustentación = **120 pts**.
+
 ## Estado final
 
 Las **cuatro** vulnerabilidades están identificadas, explotadas, mitigadas y validadas,
@@ -56,6 +58,5 @@ BASE=http://localhost:4000                                 ./poc-scripts/v4_head
 
 ## Pendiente (Día 7, requiere al equipo)
 
-- Simulacro de sustentación cruzada: cada integrante explica y demuestra las 4 vulnerabilidades (el docente elige al azar).
-- Confirmar con el docente el peso de la sustentación (la guía dice 75 pts; el README, 90).
+- Simulacro de sustentación cruzada: cada integrante explica y demuestra las 4 vulnerabilidades (el docente elige al azar). La defensa vale 90 de los 120 pts.
 - Verificar que los PoC corren en frío, sin internet, en el equipo de la demo.

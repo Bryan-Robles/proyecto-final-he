@@ -38,9 +38,9 @@ Regla de oro: las 4 vulnerabilidades deben caer en **categorías OWASP distintas
 - **Día 4 — Mitigación (Bryan + JuanDa lideran):** implementar mitigación en `mitigated/` con justificación técnica; commits `fix(vX)`; tag `vX-mitigado`; empieza revisión cruzada de PRs.
 - **Día 5 — Validación + regresión (Kevin lidera scripts):** reejecutar cada PoC contra `mitigated/` (debe fallar/reducir impacto), evidencia "DESPUÉS"; `regression_smoke.sh` confirma funcionalidad legítima; cerrar cada `vulns/Vx-*.md`.
 - **Día 6 — Freeze + limpieza + informe (equipo):** code freeze, merge de los 4 PRs a `main`; barrido de secretos (`gitleaks detect --source .`); prueba completa de funcionalidad legítima; consolidar `INFORME_TECNICO.md` + referencias.
-- **Día 7 — Simulacro de sustentación (equipo, vale 75 pts):** dejar ambas versiones corriendo (`:4000` vulnerable, `:4001` mitigada); rotación cruzada (cada uno explica las 4); 2 rondas de preguntas; verificar que los PoC corren en frío sin internet.
+- **Día 7 — Simulacro de sustentación (equipo, vale 90 pts):** dejar ambas versiones corriendo (`:4000` vulnerable, `:4001` mitigada); rotación cruzada (cada uno explica las 4); 2 rondas de preguntas; verificar que los PoC corren en frío sin internet.
 
-## Sustentación (75 pts) — guion por vulnerabilidad (~90 s)
+## Sustentación (90 pts) — guion por vulnerabilidad (~90 s)
 1. "Esta es V_, categoría OWASP A0X:2025." (una frase de qué es)
 2. Mostrar el ataque en `:4000` → funciona. (impacto)
 3. Mostrar el mismo ataque en `:4001` → falla. (mitigación)
