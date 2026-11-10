@@ -163,7 +163,7 @@ Por cada vulnerabilidad: cambio aplicado (código/config/diseño/control), justi
   + }
   + const userId = req.session.userId;
   ```
-  Diff completo con `git diff 47da0cb v1-mitigado -- mitigated/`. Detalle: `docs/vulns/V1-broken-access-control.md` §4.
+  Diff completo con `git diff v1-mitigado^1 v1-mitigado -- mitigated/` (solo `allocations.js`). Detalle: `docs/vulns/V1-broken-access-control.md` §4.
 
 ### 5.2 V2 — NoSQL Injection (Bryan)
 
@@ -250,6 +250,16 @@ Por cada vulnerabilidad: cambio aplicado (código/config/diseño/control), justi
   Commits `0f5b8bd`, `d74a853` y `66ba532`. Detalle: `docs/vulns/V4-security-misconfig.md` §4.
 
 
+
+### Alcance y limitaciones conocidas
+
+El proyecto exige mitigar **cuatro** vulnerabilidades de categorías OWASP distintas (V1–V4), y las cuatro quedan corregidas y validadas en `mitigated/`. Para ser transparentes de cara a la sustentación, `mitigated/` conserva de forma deliberada otras debilidades que **no** estaban entre las cuatro elegidas:
+
+- **`autoescape: false` en Swig** (`mitigated/server.js`): el motor de plantillas no escapa la salida por defecto, lo que deja un riesgo de XSS en la aplicación. Queda fuera del alcance de V4 (que cubre cabeceras y cookie). De hecho, el XSS reflejado de V2 se cerró con un **mensaje de error fijo** (sin reflejar la entrada) precisamente porque `autoescape` sigue desactivado; no se dependió de que el motor escapara.
+- **CSRF desactivado** (`csurf` comentado) y **HTTP plano** (sin HTTPS; el bloque `https.createServer` sigue comentado). También fuera de las cuatro vulnerabilidades elegidas.
+- **V2 — comportamiento heredado de NodeGoat:** un `threshold` numérico válido que no coincida con ninguna asignación (p. ej. `stocks` del seed todos por debajo del umbral) hace que el DAO devuelva `"No allocations found for the user"` y la ruta responda **HTTP 500**. Lo correcto sería una vista vacía o 404; el fallo está en el flujo original de NodeGoat (el DAO pasa un *string* como error), no en la mitigación de V2. Se documenta como limitación conocida.
+
+Estas debilidades se dejan a propósito para no exceder el alcance acordado (cuatro vulnerabilidades, cuatro categorías); corregirlas sería trabajo adicional fuera del enunciado.
 
 ## 6. Validación antes/después
 
