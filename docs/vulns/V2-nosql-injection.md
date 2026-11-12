@@ -82,17 +82,16 @@ Mismo PoC (`poc-scripts/v2_nosqli.py`) contra ambas versiones:
 
 | Prueba | ANTES (`:4000`) | DESPUÉS (`:4001`) |
 |--------|-----------------|-------------------|
-| Línea base (threshold=0) | 1 fila (admin) | 1 fila (admin) |
+| Base / regresión (threshold=0, válido) | HTTP 200, 1 fila (admin) | HTTP 200, 1 fila (admin) |
 | Inyección `0' || '1'=='1` | HTTP 200, **3 filas** (admin, John Doe, Will Smith) | HTTP 400, **0 filas** |
-| Regresión (threshold=10) | HTTP 200 (aceptado) | HTTP 200 (aceptado) |
 | XSS `threshold=<script>` | — | no se refleja (mensaje fijo) |
 | Veredicto / exit | VULNERABLE (exit 1) | MITIGADO (exit 0) |
 
-> La regresión se mide por el **código HTTP** (válido → 200, inyección → 400), no por el número de filas: `stocks` es aleatorio en el seed (1–40), así que `$gt:10` puede devolver 0 filas de forma legítima.
+> La regresión usa `threshold=0`, que es **determinista**: como `stocks` en el seed es 1–40 (siempre > 0), un umbral de 0 siempre devuelve las filas propias con HTTP 200. Se evita a propósito un umbral como `10`, que —según el valor aleatorio de `stocks`— podría no coincidir con nada y devolver el HTTP 500 heredado de NodeGoat (ver "Alcance y limitaciones conocidas" en el informe).
 
 - ANTES (vulnerable): la inyección ejecuta JS en `$where` y expone datos de otros usuarios → `docs/evidencias/V2/antes/poc_v2_nosqli.txt`
 - DESPUÉS (mitigado): el payload no pasa la regex → la petición se rechaza con **HTTP 400** (error del cliente) y un mensaje fijo, sin reflejar la entrada; la inyección no devuelve datos ajenos → `docs/evidencias/V2/despues/poc_v2_nosqli.txt`
-- Regresión: con `threshold=10` (entero válido) la funcionalidad legítima sigue devolviendo las asignaciones propias → `docs/evidencias/V2/despues/poc_v2_nosqli.txt`
+- Regresión: con `threshold=0` (entero válido) la funcionalidad legítima sigue devolviendo las asignaciones propias (HTTP 200) → `docs/evidencias/V2/despues/poc_v2_nosqli.txt`
 
 Reproducir (la clave demo se pasa por `POC_PASS`):
 
