@@ -14,12 +14,12 @@
 | `046473e` | test(v3) | Evidencia DESPUÉS y regresión de signup/login |
 
 ## 2. Análisis
-- **Descripción técnica:** al registrar un usuario, la contraseña se guarda tal cual la envía el cliente, en **texto plano**, en la colección `users`. En el login, la verificación es una igualdad de cadenas (`fromDB === fromUser`), no la verificación de un hash. No hay sal ni función de derivación de clave. La librería `bcrypt-nodejs` está importada pero su uso está comentado. El script de inicialización `artifacts/db-reset.js` también inserta los usuarios demo en claro y los imprime en los logs del contenedor en cada arranque.
+- **Descripción técnica:** al registrar un usuario, la contraseña se guarda tal cual la envía el cliente, en **texto plano**, en la colección `users`. En el login, la verificación es una igualdad de cadenas (`fromDB === fromUser`), no la verificación de un hash. No hay sal ni función de derivación de clave. La librería `bcrypt-nodejs` está importada pero no se usa. El script de inicialización `artifacts/db-reset.js` también inserta los usuarios demo en claro y los imprime en los logs del contenedor en cada arranque.
 - **Componentes afectados (versión vulnerable):**
-  - `vulnerable/app/data/user-dao.js:25`: `password //received from request param` (se persiste el valor recibido).
-  - `vulnerable/app/data/user-dao.js:61`: `return fromDB === fromUser;` (comparación en claro).
-  - `vulnerable/app/data/user-dao.js:75`: `comparePassword(password, user.password)`. La firma declara `(fromDB, fromUser)` pero se llama con los argumentos al revés: los nombres de los parámetros están invertidos.
-  - `vulnerable/artifacts/db-reset.js:18,27,35`: seed con contraseñas en claro; `:99` y `:110` las imprimen en el log.
+  - `vulnerable/app/data/user-dao.js:27`: `password //received from request param` (se persiste el valor recibido).
+  - `vulnerable/app/data/user-dao.js:60`: `return fromDB === fromUser;` (comparación en claro).
+  - `vulnerable/app/data/user-dao.js:69`: `comparePassword(password, user.password)`. La firma declara `(fromDB, fromUser)` pero se llama con los argumentos al revés: los nombres de los parámetros están invertidos.
+  - `vulnerable/artifacts/db-reset.js:20,28,35`: seed con contraseñas en claro; `:99` y `:110` las imprimen en el log.
 - **Causa raíz:** la credencial se trata como un dato ordinario. Falta un control criptográfico de almacenamiento (hash lento con sal) en la capa de acceso a datos, tanto en el flujo de la aplicación (signup) como en el aprovisionamiento (seed).
 - **Impacto:** confidencialidad crítica. Cualquier lectura de la colección `users` entrega todas las contraseñas listas para usar, sin necesidad de cracking: un volcado o backup filtrado, el acceso directo a Mongo, otra vulnerabilidad de lectura de datos o los logs del contenedor. Eso permite la toma inmediata de cuentas, incluida `admin`, y credential stuffing en otros servicios donde los usuarios reutilicen la contraseña.
 - **Riesgo:** **Alto.** Impacto alto (C) con probabilidad media: requiere un vector de lectura de la BD, que en la misma app existe (ver V2) y en la práctica aparece en filtraciones de backups.
@@ -53,8 +53,8 @@
 ## 4. Mitigación
 - **Cambios aplicados (solo en `mitigated/`):**
   1. **Dependencia:** `bcrypt-nodejs` 0.0.3 reemplazado por `bcryptjs` 2.4.3 (`mitigated/package.json:8`, lock actualizado).
-  2. **Signup:** `addUser` deriva la contraseña con `bcrypt.hash(password, SALT_ROUNDS, cb)` antes de construir el documento. Solo se persiste el hash (`mitigated/app/data/user-dao.js:27,38`).
-  3. **Login:** `comparePassword(plainFromUser, hashFromDB, cb)` usa `bcrypt.compare(plano, hash)` y rechaza las entradas que no sean `string` (`mitigated/app/data/user-dao.js:78-82`).
+  2. **Signup:** `addUser` deriva la contraseña con `bcrypt.hash(password, SALT_ROUNDS, cb)` antes de construir el documento. Solo se persiste el hash (`mitigated/app/data/user-dao.js:24,35`).
+  3. **Login:** `comparePassword(plainFromUser, hashFromDB, cb)` usa `bcrypt.compare(plano, hash)` y rechaza las entradas que no sean `string` (`mitigated/app/data/user-dao.js:67-71`).
   4. **Seed:** `db-reset.js` hashea los usuarios demo con el mismo costo antes de insertarlos. En los logs, `password` aparece como `[REDACTED]` y de `insertMany` solo se registra el conteo (`mitigated/artifacts/db-reset.js:12-13` y bloque de inserción).
   5. **Costo:** `SALT_ROUNDS = max(10, BCRYPT_SALT_ROUNDS || 12)`. Por defecto es 12, configurable por variable de entorno, y nunca baja de 10.
 - **Justificación técnica:**

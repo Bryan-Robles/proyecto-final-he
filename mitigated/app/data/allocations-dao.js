@@ -57,23 +57,10 @@ const AllocationsDAO = function(db){
     this.getByUserIdAndThreshold = (userId, threshold, callback) => {
         const parsedUserId = parseInt(userId);
 
-        // V2 (A05:2025) NoSQL Injection - fix de causa raiz.
-        // El codigo vulnerable interpolaba 'threshold' (entrada del usuario) dentro
-        // de una clausula $where, que ejecuta JavaScript en el motor de Mongo. Aqui:
-        //  1) 'threshold' debe ser un string de 1-2 digitos (0..99). La regex
-        //     ^\d{1,2}$ rechaza tambien arrays (?threshold=5&threshold=6, que
-        //     llega como array -> typeof !== "string"), "1e1", "0x10" y espacios,
-        //     que Number() aceptaria.
-        //  2) Se elimina $where y se usa el operador nativo $gt con el numero ya
-        //     validado. Ninguna entrada del usuario se evalua como codigo.
-        //  3) El error se devuelve por callback con un mensaje FIJO: no se incluye
-        //     la entrada, para no reflejarla en la pagina de error (autoescape off
-        //     => evitar XSS reflejado).
+        // V2 (A05:2025) NoSQL Injection - mitigado aqui: 'threshold' validado y consulta sin $where.
         let criteria = { userId: parsedUserId };
         if (threshold !== undefined && threshold !== "") {
             if (typeof threshold !== "string" || !/^\d{1,2}$/.test(threshold)) {
-                // Se marca el error para que el handler responda 400 (error del
-                // cliente) en vez de 500. El mensaje es fijo, sin la entrada.
                 const invalidThresholdError = new Error("Invalid threshold");
                 invalidThresholdError.invalidThreshold = true;
                 return callback(invalidThresholdError, null);

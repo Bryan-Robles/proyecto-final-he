@@ -19,7 +19,6 @@ const USERS_TO_INSERT = [
         "firstName": "Node Goat",
         "lastName": "Admin",
         "password": "Admin_123",
-        //"password" : "$2a$10$8Zo/1e8KM8QzqOKqbDlYlONBOzukWXrM.IiyzqHRYDXqwB3gzDsba", // Admin_123
         "isAdmin": true
     }, {
         "_id": 2,
@@ -28,7 +27,6 @@ const USERS_TO_INSERT = [
         "lastName": "Doe",
         "benefitStartDate": "2030-01-10",
         "password": "User1_123"
-        // "password" : "$2a$10$RNFhiNmt2TTpVO9cqZElb.LQM9e1mzDoggEHufLjAnAKImc6FNE86",// User1_123
     }, {
         "_id": 3,
         "userName": "user2",
@@ -36,7 +34,6 @@ const USERS_TO_INSERT = [
         "lastName": "Smith",
         "benefitStartDate": "2025-11-30",
         "password": "User2_123"
-        //"password" : "$2a$10$Tlx2cNv15M0Aia7wyItjsepeA8Y6PyBYaNdQqvpxkIUlcONf1ZHyq", // User2_123
     }];
 
 const tryDropCollection = (db, name) => {
@@ -98,12 +95,11 @@ MongoClient.connect(db, (err, db) =>  {
         });
 
         // insert admin and test users
-        // V3: credenciales demo conocidas del laboratorio; se hashean antes de
-        // insertar (hashSync es aceptable aqui: script de un solo uso, no servidor).
+        // V3 - mitigado aqui: el seed se inserta con hash bcrypt.
         const usersToInsert = USERS_TO_INSERT.map((user) => Object.assign({}, user, {
             password: bcrypt.hashSync(user.password, SALT_ROUNDS)
         }));
-        // V3: nunca registrar contrasenas ni hashes en logs.
+        // V3 - mitigado aqui: credenciales fuera del log.
         const redact = (user) => Object.assign({}, user, { password: "[REDACTED]" });
         console.log("Users to insert:");
         usersToInsert.forEach((user) => console.log(JSON.stringify(redact(user))));
@@ -117,7 +113,7 @@ MongoClient.connect(db, (err, db) =>  {
                 console.log(JSON.stringify(err));
                 process.exit(1);
             }
-            // V3: solo el conteo; data.ops contiene los hashes.
+            // V3 - mitigado aqui: solo se registra el conteo.
             parseResponse(err, { insertedCount: data.insertedCount }, "users.insertMany");
 
             data.ops.forEach((user) => {
