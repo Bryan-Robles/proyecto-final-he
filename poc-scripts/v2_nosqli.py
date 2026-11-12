@@ -24,8 +24,8 @@ Metodo (solo lectura, sin payloads destructivos - nada de bucles/DoS)
 2. Linea base: threshold=0  -> solo las filas del propio userId.
 3. Inyeccion: threshold con condicion booleana verdadera -> si devuelve MAS
    filas (datos de otros usuarios), el $where ejecuto la entrada = VULNERABLE.
-4. Regresion: threshold=10 (entero valido) -> la funcionalidad legitima sigue
-   devolviendo datos propios.
+4. Regresion: threshold=0 (entero valido; stocks siempre > 0) -> la funcionalidad
+   legitima sigue devolviendo los datos propios con HTTP 200, de forma determinista.
 
 Codigo de salida: 1 = vulnerable, 0 = mitigado, 2 = error (p.ej. login fallido).
 """
@@ -87,39 +87,35 @@ def main():
         print(f"[V2] ERROR de login contra {BASE}: {e}")
         return 2
 
-    _, base_html = allocations(opener, "0")
+    # Linea base = regresion: threshold=0 es un entero VALIDO y, como 'stocks' en el
+    # seed es 1..40 (siempre > 0), devuelve SIEMPRE las filas propias con HTTP 200.
+    # Es determinista: no depende del valor aleatorio de 'stocks' (por eso NO se usa
+    # un umbral como 10, que podria no matchear nada y dar un 500 heredado de NodeGoat).
+    base_status, base_html = allocations(opener, "0")
     base_rows = rows(base_html)
 
-    # Guard: si la linea base esta vacia, el login fallo o el seed es distinto.
-    # Sin este control, una app a medias daria 0/0 filas y un falso "MITIGADO".
-    if not base_rows:
-        print("[V2] ERROR: linea base vacia (login fallido, seed distinto o app no lista). "
-              "No se puede concluir.")
+    # Guard: un threshold valido (0) debe dar HTTP 200 con filas propias. Si no, el
+    # login fallo / el seed es distinto / la app no esta lista. Sin esto, una app a
+    # medias daria 0/0 y un falso "MITIGADO".
+    if base_status != 200 or not base_rows:
+        print(f"[V2] ERROR: threshold valido (0) dio HTTP {base_status}, {len(base_rows)} fila(s). "
+              "Login fallido, seed distinto o app no lista; no se puede concluir.")
         return 2
 
     inj_status, inj_html = allocations(opener, INJECTION)
     inj_rows = rows(inj_html)
 
-    # Regresion: un entero valido debe ser ACEPTADO (HTTP 200). No se valida el
-    # numero de filas: 'stocks' es aleatorio en el seed (1..40), asi que $gt:10
-    # puede devolver 0 filas de forma legitima. Lo determinista es el codigo HTTP.
-    reg_status, reg_html = allocations(opener, "10")
-    reg_rows = rows(reg_html)
-
     print(f"[V2] Destino: {BASE}  userId={USER_ID}")
     print(f"[V2] Payload threshold: {INJECTION!r}")
-    print(f"[V2] Linea base (threshold=0): {len(base_rows)} fila(s) -> {sorted(set(base_rows))}")
-    print(f"[V2] Con inyeccion:            HTTP {inj_status}, {len(inj_rows)} fila(s) -> {sorted(set(inj_rows))}")
-    print(f"[V2] Regresion (threshold=10): HTTP {reg_status} ({'aceptado' if reg_status == 200 else 'RECHAZADO'}), {len(reg_rows)} fila(s) propia(s)")
+    print(f"[V2] Regresion (threshold=0, valido): HTTP {base_status}, {len(base_rows)} fila(s) propia(s) -> {sorted(set(base_rows))}")
+    print(f"[V2] Con inyeccion:                   HTTP {inj_status}, {len(inj_rows)} fila(s) -> {sorted(set(inj_rows))}")
 
     leaked = sorted(set(inj_rows) - set(base_rows))
     if len(inj_rows) > len(base_rows) and leaked:
         print(f"[V2] Datos expuestos de otros usuarios: {leaked}")
         print("[V2] RESULTADO: VULNERABLE - el $where ejecuto la entrada (A05:2025)")
         return 1
-    if reg_status != 200:
-        print(f"[V2] ADVERTENCIA: un threshold valido (10) fue rechazado (HTTP {reg_status}): posible regresion.")
-    print(f"[V2] Inyeccion rechazada (HTTP {inj_status}); un threshold valido se acepta (HTTP {reg_status}).")
+    print(f"[V2] Inyeccion rechazada (HTTP {inj_status}); un threshold valido (0) devuelve los datos propios (HTTP {base_status}).")
     print("[V2] RESULTADO: MITIGADO - la inyeccion no altero el resultado")
     return 0
 

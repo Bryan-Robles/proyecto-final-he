@@ -1,5 +1,5 @@
 Evidencia V2 - NoSQL Injection (DESPUES, version mitigada)
-Fecha: 2026-11-09
+Fecha: 2026-11-12
 App: OWASP NodeGoat, mitigated/ en http://localhost:4001
 Categoria: OWASP A05:2025 Injection
 
@@ -10,10 +10,9 @@ Comando (la clave demo se pasa por POC_PASS, no se publica):
 Salida:
   [V2] Destino: http://localhost:4001  userId=1
   [V2] Payload threshold: "0' || '1'=='1"
-  [V2] Linea base (threshold=0): 1 fila(s) -> ['Node Goat Admin']
-  [V2] Con inyeccion:            HTTP 400, 0 fila(s) -> []
-  [V2] Regresion (threshold=10): HTTP 200 (aceptado), 1 fila(s) propia(s)
-  [V2] Inyeccion rechazada (HTTP 400); un threshold valido se acepta (HTTP 200).
+  [V2] Regresion (threshold=0, valido): HTTP 200, 1 fila(s) propia(s) -> ['Node Goat Admin']
+  [V2] Con inyeccion:                   HTTP 400, 0 fila(s) -> []
+  [V2] Inyeccion rechazada (HTTP 400); un threshold valido (0) devuelve los datos propios (HTTP 200).
   [V2] RESULTADO: MITIGADO - la inyeccion no altero el resultado
   EXIT_DESPUES=0
 
@@ -26,7 +25,7 @@ Interpretacion:
   y la consulta usa el operador nativo $gt (se elimino $where). El payload
   "0' || '1'=='1" no pasa la validacion: el error se marca y el handler de la ruta
   responde HTTP 400 (error del cliente) con un mensaje fijo ("Invalid threshold"),
-  por lo que no se refleja la entrada (sin XSS). Un threshold valido (10) se acepta
-  (HTTP 200): la funcionalidad legitima se mantiene. El numero de filas de la
-  regresion depende del valor aleatorio de 'stocks' del seed; lo determinista es el
-  codigo HTTP.
+  por lo que no se refleja la entrada (sin XSS). La regresion usa threshold=0,
+  determinista: un entero valido devuelve siempre las filas propias con HTTP 200
+  (no depende del valor aleatorio de 'stocks', que con un umbral como 10 podria no
+  matchear nada y dar el HTTP 500 heredado de NodeGoat).
