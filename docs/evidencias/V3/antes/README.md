@@ -3,7 +3,7 @@
 | Campo | Detalle |
 |---|---|
 | Condición inicial | `vulnerable/` en Docker, commit `03ae3e5`. Seed por `artifacts/db-reset.js` (3 usuarios). |
-| Componente | `app/data/user-dao.js:25` (addUser guarda `password` sin transformar); `:61` comparación `===`; `artifacts/db-reset.js:18,27,35` seed en claro. |
+| Componente | `app/data/user-dao.js:27` (addUser guarda `password` sin transformar); `:60` comparación `===`; `artifacts/db-reset.js:20,28,35` seed en claro. |
 | Herramienta | `poc-scripts/v3_check_hash.js` (Node + driver `mongodb` 2.x, solo lectura, enmascara valores). |
 | Comando | `docker compose -f vulnerable/docker-compose.yml exec -T web node - < poc-scripts/v3_check_hash.js` |
 | Resultado | 3/3 usuarios del seed y el usuario creado por `/signup` (`v3test`) clasificados `TEXTO PLANO`. Exit code 1. Ver `poc_v3_seed.txt/.png`, `poc_v3_signup.txt/.png`. |

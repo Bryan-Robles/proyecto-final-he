@@ -1,9 +1,7 @@
-// V3 (A04:2025): bcryptjs (JS puro, sin compilacion nativa en node:12-alpine)
-// reemplaza a bcrypt-nodejs 0.0.3, abandonado y marcado "deprecated" en npm.
+// V3 (A04:2025) Cryptographic Failures - mitigado en este archivo: hash bcrypt en
+// addUser() y verificacion bcrypt en validateLogin().
 const bcrypt = require("bcryptjs");
 
-// V3: factor de costo de bcrypt (2^12 rondas de expansion de clave, ~300 ms
-// por hash con bcryptjs). Configurable con BCRYPT_SALT_ROUNDS, nunca < 10.
 const SALT_ROUNDS = Math.max(10, parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12);
 
 /* The UserDAO must be constructed with a connected database object */
@@ -22,8 +20,7 @@ function UserDAO(db) {
 
     this.addUser = (userName, firstName, lastName, password, email, callback) => {
 
-        // V3: hash asincrono (no bloquea el event loop). bcrypt genera una sal
-        // aleatoria por usuario y la guarda dentro del hash ($2a$12$<sal><hash>).
+        // V3 - mitigado aqui: la contrasena se guarda como hash bcrypt.
         bcrypt.hash(password, SALT_ROUNDS, (err, passwordHash) => {
             if (err) {
                 return callback(err, null);
@@ -35,12 +32,7 @@ function UserDAO(db) {
                 firstName,
                 lastName,
                 benefitStartDate: this.getRandomFutureDate(),
-                password: passwordHash // V3: nunca se guarda el valor recibido
-                /*
-                // Fix for A2-1 - Broken Auth
-                // Stores password  in a safer way using one way encryption and salt hashing
-                password: bcrypt.hashSync(password, bcrypt.genSaltSync())
-                */
+                password: passwordHash
             };
 
             // Add email if set
@@ -71,20 +63,12 @@ function UserDAO(db) {
     this.validateLogin = (userName, password, callback) => {
 
         // Helper function to compare passwords
-        // V3: firma corregida. El original declaraba (fromDB, fromUser) pero se
-        // llamaba con (password, user.password): nombres invertidos.
-        // bcrypt.compare(texto_plano, hash): con el orden invertido devuelve
-        // false sin lanzar error. Asincrono para no bloquear el event loop.
+        // V3 - mitigado aqui: verificacion contra el hash bcrypt.
         const comparePassword = (plainFromUser, hashFromDB, cb) => {
             if (typeof plainFromUser !== "string" || typeof hashFromDB !== "string") {
                 return cb(null, false);
             }
             return bcrypt.compare(plainFromUser, hashFromDB, cb);
-            /*
-            // Fix for A2-Broken Auth
-            // compares decrypted password stored in this.addUser()
-            return bcrypt.compareSync(fromDB, fromUser);
-            */
         };
 
         // Callback to pass to MongoDB that validates a user document

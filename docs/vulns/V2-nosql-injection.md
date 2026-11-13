@@ -12,13 +12,13 @@
 | `dbfd14d` | test(v2) | Validación antes/después + evidencia DESPUÉS |
 | `29159a2` | fix(v2) | Revisión de `@j-david06`: evita XSS reflejado (error por `callback` sin la entrada), validación con regex, PoC con guard de login/regresión/`POC_PASS` |
 
-> **Nota del equipo:** la guía operativa sugería bypass de login con `{"$gt":""}`. En NodeGoat **ese payload no funciona**: el password se compara en JavaScript (`fromDB === fromUser`, `user-dao.js:61`), no dentro de la consulta Mongo, así que un operador no evade el login. La NoSQL Injection real y demostrable es la inyección de JavaScript del lado servidor mediante `$where` en el parámetro `threshold`. Misma categoría OWASP (A05 Injection).
+> **Nota del equipo:** la guía operativa sugería bypass de login con `{"$gt":""}`. En NodeGoat **ese payload no funciona**: el password se compara en JavaScript (`fromDB === fromUser`, `user-dao.js:60`), no dentro de la consulta Mongo, así que un operador no evade el login. La NoSQL Injection real y demostrable es la inyección de JavaScript del lado servidor mediante `$where` en el parámetro `threshold`. Misma categoría OWASP (A05 Injection).
 
 ## 2. Análisis
 - Descripción técnica: el parámetro `threshold` (query string de `GET /allocations/:userId?threshold=`) se concatena sin sanitizar dentro de una cláusula `$where` de MongoDB. `$where` ejecuta JavaScript en el servidor de base de datos, por lo que un atacante puede inyectar código arbitrario (condiciones siempre verdaderas, bucles, etc.).
 - Componente/archivo/config afectada:
-  - `vulnerable/app/data/allocations-dao.js:78` → `return { $where: \`this.userId == ${parsedUserId} && this.stocks > '${threshold}'\` };`
-  - Entrada: `vulnerable/app/routes/allocations.js:21` (`const { threshold } = req.query;`)
+  - `vulnerable/app/data/allocations-dao.js:66` → `return { $where: \`this.userId == ${parsedUserId} && this.stocks > '${threshold}'\` };`
+  - Entrada: `vulnerable/app/routes/allocations.js:19` (`const { threshold } = req.query;`)
 - Causa raíz: concatenación de entrada no confiable dentro de una consulta que ejecuta código (`$where`), sin validación de tipo ni de rango.
 - Impacto y riesgo: integridad/confidencialidad y disponibilidad — lectura de registros fuera de criterio e incluso denegación de servicio por bucle infinito (`'};while(true){}'`). Riesgo alto.
   > **Nota ética:** el payload de bucle infinito se documenta como riesgo teórico pero **no se ejecutó**: las condiciones del proyecto prohíben ataques de DoS/destructivos. El PoC usa únicamente una condición booleana de solo lectura.

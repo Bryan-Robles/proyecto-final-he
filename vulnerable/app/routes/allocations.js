@@ -9,10 +9,8 @@ function AllocationsHandler(db) {
     const allocationsDAO = new AllocationsDAO(db);
 
     this.displayAllocations = (req, res, next) => {
-        /*
-        // Fix for A4 Insecure DOR -  take user id from session instead of from URL param
-        const { userId } = req.session;
-        */
+        // V1 (A01:2025) Broken Access Control / IDOR: userId se toma de la URL sin
+        // comprobar que pertenezca al usuario de la sesion. Mitigado en mitigated/app/routes/allocations.js.
         const {
             userId
         } = req.params;

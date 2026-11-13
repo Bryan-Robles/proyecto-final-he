@@ -8,7 +8,7 @@
 - Descripción técnica: el endpoint `GET /allocations/:userId` muestra las asignaciones de inversión del usuario cuyo `userId` llega en la URL. El handler toma el `userId` del parámetro de la ruta, no de la sesión, y solo valida que haya sesión iniciada (`isLoggedIn`), sin comprobar que el recurso pertenezca al usuario autenticado. Un usuario logueado puede cambiar el número en la URL y leer datos de otros usuarios (IDOR / escalada horizontal).
 - Componente/archivo/config afectada:
   - `vulnerable/app/routes/index.js:63` → `app.get("/allocations/:userId", isLoggedIn, allocationsHandler.displayAllocations);` (solo `isLoggedIn`, sin control de propiedad)
-  - `vulnerable/app/routes/allocations.js:16-18` → `const { userId } = req.params;` (toma el id del cliente)
+  - `vulnerable/app/routes/allocations.js:14-16` → `const { userId } = req.params;` (toma el id del cliente)
 - Causa raíz: la autorización se basa en un identificador controlado por el cliente (`req.params.userId`) en lugar del identificador de la sesión (`req.session.userId`). No hay verificación de que el usuario autenticado sea el dueño del recurso.
 - Impacto y riesgo: confidencialidad — exposición de datos financieros de cualquier usuario cambiando un número en la URL. Riesgo alto, explotación trivial, sin necesidad de herramientas.
 
@@ -34,7 +34,7 @@
 - Explicación del impacto: con una sesión válida se obtienen las asignaciones de un usuario ajeno cambiando solo el id en la URL.
 
 ## 4. Mitigación
-- Cambio aplicado (solo `mitigated/app/routes/allocations.js`, líneas 16-25): el handler compara el id de la URL con el de la sesión y, si no coinciden, responde 403 y registra el intento. La comparación usa `String()` en ambos lados porque la sesión guarda un número y la URL llega como string. El recurso consultado es siempre el de la sesión.
+- Cambio aplicado (solo `mitigated/app/routes/allocations.js`, líneas 12-19): el handler compara el id de la URL con el de la sesión y, si no coinciden, responde 403 y registra el intento. La comparación usa `String()` en ambos lados porque la sesión guarda un número y la URL llega como string. El recurso consultado es siempre el de la sesión.
   La ruta en `mitigated/app/routes/index.js:63` **no cambió** (sigue `isLoggedIn` + `displayAllocations`); todo el control está en el handler.
 - Historial de la decisión: la primera versión ignoraba el id de la URL y respondía 200 con los datos de la sesión. En la revisión del PR (kevcas19) se señaló que eso rompe la semántica REST, puede mezclar contenido en cachés por URL, deja el intento sin detectar y oculta errores de clientes legítimos. Se adoptó 403 + log.
 - Justificación técnica: ata la autorización al identificador de sesión del servidor, que el cliente no puede manipular, y deja una señal de detección (`[SEC] Posible IDOR`). El id de la URL se registra con `JSON.stringify` para evitar inyección de saltos de línea en el log.

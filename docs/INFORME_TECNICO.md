@@ -25,14 +25,14 @@ Resumen de las 4 vulnerabilidades (detalle completo en `docs/vulns/Vx-*.md`).
 
 | V# | Vulnerabilidad | Categoría OWASP 2025 | Componente afectado (archivo:línea) | Dueño |
 |----|----------------|----------------------|-------------------------------------|-------|
-| V1 | IDOR / Broken Access Control | A01:2025 | `routes/allocations.js:16-18` + `routes/index.js:63` | JuanFra |
-| V2 | NoSQL Injection (`$where` en `threshold`) | A05:2025 | `data/allocations-dao.js:78` | Bryan |
-| V3 | Cryptographic Failures (password en texto plano) | A04:2025 | `data/user-dao.js:25` y `:61` | JuanDa |
-| V4 | Security Misconfiguration | A02:2025 | server.js:38-65 (helmet y x-powered-by comentados) y :78-102 (sesión sin cookie) | Kevin |
+| V1 | IDOR / Broken Access Control | A01:2025 | `routes/allocations.js:14-16` + `routes/index.js:63` | JuanFra |
+| V2 | NoSQL Injection (`$where` en `threshold`) | A05:2025 | `data/allocations-dao.js:66` | Bryan |
+| V3 | Cryptographic Failures (password en texto plano) | A04:2025 | `data/user-dao.js:27` y `:60` | JuanDa |
+| V4 | Security Misconfiguration | A02:2025 | server.js:14-15 (sin helmet, x-powered-by expuesto) y :49-59 (sesión sin cookie) | Kevin |
 
 Detalle completo en `docs/vulns/Vx-*.md` (descripción, causa raíz, impacto, PoC, mitigación, validación).
 
-> **Nota V2:** se descartó el bypass de login con operadores Mongo (`{"$gt":""}`) porque NodeGoat compara el password en JavaScript (`user-dao.js:61`), no en la consulta; ese payload no evade el login. La NoSQL Injection documentada es la inyección de JS server-side vía `$where` en el parámetro `threshold` (misma categoría A05).
+> **Nota V2:** se descartó el bypass de login con operadores Mongo (`{"$gt":""}`) porque NodeGoat compara el password en JavaScript (`user-dao.js:60`), no en la consulta; ese payload no evade el login. La NoSQL Injection documentada es la inyección de JS server-side vía `$where` en el parámetro `threshold` (misma categoría A05).
 
 ## 3. Evidencias de explotación controlada
 
@@ -114,7 +114,7 @@ Relación vulnerabilidad → impacto (CIA) → riesgo → categoría OWASP, just
 
 **Por qué A05 y no otra:**
 - **No es A01 (Broken Access Control) aunque también exponga datos ajenos:** la causa raíz es distinta. En V2 la **entrada se ejecuta como código** en el motor de Mongo (`$where`); en V1 el servidor confía en el `:userId` de la URL sin ejecutar nada. La mitigación también difiere (sanear el tipo de la entrada y quitar `$where` vs. atar la autorización a la sesión).
-- **Se descartó el "bypass de login" con `{"$gt":""}`:** NodeGoat compara el password en JavaScript (`user-dao.js:61`), no dentro de la consulta, así que ese operador no evade el login. El vector real y demostrable es la inyección de JS vía `$where` en `threshold`.
+- **Se descartó el "bypass de login" con `{"$gt":""}`:** NodeGoat compara el password en JavaScript (`user-dao.js:60`), no dentro de la consulta, así que ese operador no evade el login. El vector real y demostrable es la inyección de JS vía `$where` en `threshold`.
 
 ### 4.3 V3 — Cryptographic Failures (JuanDa)
 
@@ -150,7 +150,7 @@ Por cada vulnerabilidad: cambio aplicado (código/config/diseño/control), justi
 
 ### 5.1 V1 — IDOR / Broken Access Control (JuanFra)
 
-- **Cambio aplicado (solo `mitigated/`):** en `app/routes/allocations.js` (líneas 16-25) el handler compara `String(req.params.userId)` con `String(req.session.userId)`; si no coinciden responde **403** y registra `[SEC] Posible IDOR`. La ruta en `routes/index.js:63` no cambió.
+- **Cambio aplicado (solo `mitigated/`):** en `app/routes/allocations.js` (líneas 12-19) el handler compara `String(req.params.userId)` con `String(req.session.userId)`; si no coinciden responde **403** y registra `[SEC] Posible IDOR`. La ruta en `routes/index.js:63` no cambió.
 - **Justificación técnica:** la autorización depende del identificador de sesión del servidor, que el cliente no controla, y el intento deja señal de detección. `String()` resuelve la diferencia número (sesión) / string (URL).
 - **Decisión de diseño:** la primera versión ignoraba el id de la URL y respondía 200 con los datos de la sesión. En la revisión del PR se cambió a 403 + log por: semántica REST, riesgo de caché por URL, intento sin detectar y errores de cliente ocultos.
 - **Diff:**
@@ -310,9 +310,9 @@ Matriz de validación. Por cada vulnerabilidad:
 
 ### 7.3 V3 — Cryptographic Failures (JuanDa)
 
-**Conclusión técnica.** El almacenamiento de contraseñas en texto plano (`user-dao.js:25`) y su comparación directa (`fromDB === fromUser`, `user-dao.js:61`) son una falla criptográfica de raíz: cualquier lectura de la base de datos —inyección, volcado, backup mal protegido u operador con acceso— exponía todas las credenciales reutilizables. La causa no fue un algoritmo débil sino la ausencia total de protección sobre un dato que nunca debe ser recuperable.
+**Conclusión técnica.** El almacenamiento de contraseñas en texto plano (`user-dao.js:27`) y su comparación directa (`fromDB === fromUser`, `user-dao.js:60`) son una falla criptográfica de raíz: cualquier lectura de la base de datos —inyección, volcado, backup mal protegido u operador con acceso— exponía todas las credenciales reutilizables. La causa no fue un algoritmo débil sino la ausencia total de protección sobre un dato que nunca debe ser recuperable.
 
-La mitigación aplicó cifrado de un solo sentido con `bcrypt` (cost=12): salt por usuario en el registro (`bcrypt.hash` asíncrono, `addUser`, `user-dao.js:27`) y verificación con `bcrypt.compare(plainFromUser, hashFromDB, cb)` asíncrono en el login (`user-dao.js:82`), con API asíncrona para no bloquear el event loop. El seed `artifacts/db-reset.js:104` usa `hashSync` por ser un script de un solo uso, de modo que los usuarios demo se crean ya con hash y se eliminan las contraseñas en claro del arranque. Validación antes/después: en `:4000` las 4 contraseñas se leen en texto plano (seed + signup); en `:4001` las 4 persisten como hash `bcrypt` (`$2a$12$`) no reversible, con login legítimo operando (regresión verde). El impacto baja de "exposición total de credenciales" a "hash computacionalmente costoso de revertir", alineado con A04:2025.
+La mitigación aplicó cifrado de un solo sentido con `bcrypt` (cost=12): salt por usuario en el registro (`bcrypt.hash` asíncrono, `addUser`, `user-dao.js:24`) y verificación con `bcrypt.compare(plainFromUser, hashFromDB, cb)` asíncrono en el login (`user-dao.js:71`), con API asíncrona para no bloquear el event loop. El seed `artifacts/db-reset.js:100` usa `hashSync` por ser un script de un solo uso, de modo que los usuarios demo se crean ya con hash y se eliminan las contraseñas en claro del arranque. Validación antes/después: en `:4000` las 4 contraseñas se leen en texto plano (seed + signup); en `:4001` las 4 persisten como hash `bcrypt` (`$2a$12$`) no reversible, con login legítimo operando (regresión verde). El impacto baja de "exposición total de credenciales" a "hash computacionalmente costoso de revertir", alineado con A04:2025.
 
 **Reflexión ética.** Custodiar credenciales implica responsabilidad directa: una sola decisión de diseño omitida compromete la privacidad de cada usuario registrado. Todo el ejercicio se ejecutó exclusivamente sobre la instancia local controlada, sin tocar sistemas de terceros ni infraestructura institucional. Ninguna contraseña, token o clave propia se versionó: las credenciales de prueba pasan por `POC_PASS`, nunca en archivos. Proteger un secreto no es endurecimiento opcional sino obligación mínima hacia el usuario, y el conocimiento ofensivo adquirido obliga a un uso estrictamente defensivo y autorizado.
 
